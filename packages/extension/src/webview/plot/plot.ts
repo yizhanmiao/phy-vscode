@@ -268,7 +268,7 @@ export function createPlot(container: HTMLElement): Plot {
     const t = hit(ev);
     if (t) drag = { i: t.i, a: t.a, sx: ev.clientX, sy: ev.clientY, view: panels[t.i].view, moved: false };
   });
-  window.addEventListener('mousemove', (ev) => {
+  const handleMouseMove = (ev: MouseEvent) => {
     if (!drag) return;
     const dx = ev.clientX - drag.sx;
     const dy = ev.clientY - drag.sy;
@@ -276,14 +276,16 @@ export function createPlot(container: HTMLElement): Plot {
     if (!drag.moved) return;
     panels[drag.i].view = { x: panRange(drag.view.x, -dx / drag.a.w), y: panRange(drag.view.y, dy / drag.a.h) };
     schedule();
-  });
-  window.addEventListener('mouseup', (ev) => {
+  };
+  const handleMouseUp = (ev: MouseEvent) => {
     if (drag && !drag.moved) {
       const t = hit(ev);
       if (t) for (const l of listeners) l({ panel: t.i, x: t.dataX, y: t.dataY, shift: ev.shiftKey, button: ev.button });
     }
     drag = undefined;
-  });
+  };
+  window.addEventListener('mousemove', handleMouseMove);
+  window.addEventListener('mouseup', handleMouseUp);
   glCanvas.addEventListener('dblclick', (ev) => {
     const t = hit(ev);
     if (!t) return;
@@ -310,6 +312,11 @@ export function createPlot(container: HTMLElement): Plot {
       resize.disconnect();
       if (pending) cancelAnimationFrame(pending);
       release();
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      gl.deleteProgram(program);
+      gl.deleteVertexArray(vao);
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
       glCanvas.remove();
       overlay.remove();
     },
