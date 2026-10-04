@@ -1,5 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { expect } from 'vitest';
+import { join } from 'node:path';
+import { expect, onTestFinished } from 'vitest';
+import { openDataset } from '../src/host/dataset/dataset';
+import { Session } from '../src/host/session';
+import { fixtureParams, VARIANTS, type Variant } from './fixtures/makeFixture';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const golden = (name: string): any => JSON.parse(readFileSync(new URL(`./goldens/${name}`, import.meta.url), 'utf8'));
@@ -21,3 +25,14 @@ export function expectClose(actual: ArrayLike<number>, expected: ArrayLike<numbe
 }
 
 export const live = { isCancellationRequested: false } as const;
+
+export async function openSession(where: Variant | string, select: number[] = []) {
+  const params = (VARIANTS as readonly string[]).includes(where) ? fixtureParams(where as Variant) : join(where, 'params.py');
+  const session = new Session(await openDataset(params));
+  onTestFinished(async () => {
+    session.dispose();
+    await session.dataset.close();
+  });
+  session.select(select);
+  return { session, ds: session.dataset };
+}
