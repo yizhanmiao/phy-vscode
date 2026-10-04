@@ -90,17 +90,25 @@ export function createPlot(container: HTMLElement): Plot {
   const gl = glCanvas.getContext('webgl2', { antialias: true, premultipliedAlpha: false });
   if (!gl) throw new Error('WebGL2 is not available in this webview');
   const ctx = overlay.getContext('2d')!;
-  const program = link(gl);
-  const loc = {
-    pos: gl.getAttribLocation(program, 'a_pos'),
-    min: gl.getUniformLocation(program, 'u_min'),
-    max: gl.getUniformLocation(program, 'u_max'),
-    size: gl.getUniformLocation(program, 'u_size'),
-    px: gl.getUniformLocation(program, 'u_px'),
-    color: gl.getUniformLocation(program, 'u_color'),
-    round: gl.getUniformLocation(program, 'u_round'),
+  /** Everything `draw` needs from the GL context besides buffers; rebuilt after a lost context is restored. */
+  const build = () => {
+    const program = link(gl);
+    return {
+      program,
+      loc: {
+        pos: gl.getAttribLocation(program, 'a_pos'),
+        min: gl.getUniformLocation(program, 'u_min'),
+        max: gl.getUniformLocation(program, 'u_max'),
+        size: gl.getUniformLocation(program, 'u_size'),
+        px: gl.getUniformLocation(program, 'u_px'),
+        color: gl.getUniformLocation(program, 'u_color'),
+        round: gl.getUniformLocation(program, 'u_round'),
+      },
+      vao: gl.createVertexArray(),
+    };
   };
-  const vao = gl.createVertexArray();
+  let { program, loc, vao } = build();
+  let lost = false; // while set, no GL call is made: the context's objects are gone and every call would be a no-op
   let scene: Scene = { rows: 1, cols: 1, panels: [] };
   let panels: PanelState[] = [];
   let areas: Rect[] = [];
@@ -125,7 +133,9 @@ export function createPlot(container: HTMLElement): Plot {
       width: layer.kind === 'lines' ? layer.width ?? 1 : 1,
     };
   };
-  const release = () => panels.forEach((p) => p.gpu.forEach((g) => gl.deleteBuffer(g.buffer)));
+  const release = () => {
+    if (!lost) panels.forEach((p) => p.gpu.forEach((g) => gl.deleteBuffer(g.buffer)));
+  };
 
   const layout = () => {
     const cells = gridRects(container.clientWidth, container.clientHeight, scene.rows, scene.cols, 4, scene.colWeights, scene.rowWeights);
@@ -147,6 +157,12 @@ export function createPlot(container: HTMLElement): Plot {
     }
     layout();
     const theme = readTheme();
+    if (lost) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      drawMessage('WebGL context lost — it will redraw when restored', theme, w, h);
+      return;
+    }
     gl.viewport(0, 0, glCanvas.width, glCanvas.height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -186,13 +202,15 @@ export function createPlot(container: HTMLElement): Plot {
       decorate(p, a, theme);
     });
     gl.disable(gl.SCISSOR_TEST);
-    if (scene.message) {
-      ctx.fillStyle = toCss(theme.muted);
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '12px sans-serif';
-      ctx.fillText(scene.message, w / 2, h / 2);
-    }
+    if (scene.message) drawMessage(scene.message, theme, w, h);
+  };
+
+  const drawMessage = (text: string, theme: Theme, w: number, h: number) => {
+    ctx.fillStyle = toCss(theme.muted);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '12px sans-serif';
+    ctx.fillText(text, w / 2, h / 2);
   };
 
   const decorate = (p: PanelState, a: Rect, theme: Theme) => {
@@ -302,6 +320,22 @@ export function createPlot(container: HTMLElement): Plot {
     schedule();
   });
 
+  // preventDefault on 'lost' lets the browser restore the context (GPU reset, sleep/wake, context-limit eviction);
+  // restoring starts from a blank context, so rebuild the program and re-upload the current scene's buffers (zoom is kept).
+  const onContextLost = (ev: Event) => {
+    ev.preventDefault();
+    lost = true;
+    schedule();
+  };
+  const onContextRestored = () => {
+    ({ program, loc, vao } = build());
+    for (const p of panels) p.gpu = p.panel.layers.map(upload); // the old buffers died with the context: no deleteBuffer
+    lost = false; // only after a successful rebuild; if it threw, the 'context lost' message stays
+    schedule();
+  };
+  glCanvas.addEventListener('webglcontextlost', onContextLost);
+  glCanvas.addEventListener('webglcontextrestored', onContextRestored);
+
   const resize = new ResizeObserver(schedule);
   resize.observe(container);
 
@@ -312,7 +346,7 @@ export function createPlot(container: HTMLElement): Plot {
       scene = next;
       panels = next.panels.map((panel, i) => {
         const was = prev[i];
-        return { panel, view: carryView(was && { x: was.panel.x, y: was.panel.y, view: was.view }, panel), gpu: panel.layers.map(upload) };
+        return { panel, view: carryView(was && { x: was.panel.x, y: was.panel.y, view: was.view }, panel), gpu: lost ? [] : panel.layers.map(upload) }; // while lost, the restore handler uploads
       });
       schedule();
     },
@@ -326,9 +360,11 @@ export function createPlot(container: HTMLElement): Plot {
       release();
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      glCanvas.removeEventListener('webglcontextlost', onContextLost);
+      glCanvas.removeEventListener('webglcontextrestored', onContextRestored);
       gl.deleteProgram(program);
       gl.deleteVertexArray(vao);
-      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      if (!gl.isContextLost()) gl.getExtension('WEBGL_lose_context')?.loseContext(); // already lost: nothing to free, and the call would only raise a GL error
       glCanvas.remove();
       overlay.remove();
     },
