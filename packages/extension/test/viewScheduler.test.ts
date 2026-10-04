@@ -103,4 +103,32 @@ describe('ViewScheduler', () => {
     const plain = new ArrayBuffer(4);
     expect(toArrayBuffer(plain)).toBe(plain);
   });
+
+  it('cancels hidden views\' in-flight runs on selection change', async () => {
+    const { s, calls, posted, select, flush } = harness();
+    s.setVisible(['a']);
+    const oldRun = calls[0];
+    s.setVisible([]);
+    select([1]);
+    expect(oldRun.token.isCancellationRequested).toBe(true);
+    oldRun.resolve(result(1));
+    await flush();
+    const data = posted.filter((m) => m.type === 'viewData');
+    expect(data).toHaveLength(0);
+    s.setVisible(['a']);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('hide-then-show with no selection change delivers in-flight result', async () => {
+    const { s, calls, posted, flush } = harness();
+    s.setVisible(['a']);
+    const run = calls[0];
+    s.setVisible([]);
+    s.setVisible(['a']);
+    run.resolve(result(1));
+    await flush();
+    const data = posted.filter((m) => m.type === 'viewData');
+    expect(data).toHaveLength(1);
+    expect(data[0]).toMatchObject({ viewId: 'a', meta: { tag: 1 } });
+  });
 });

@@ -55,6 +55,7 @@ export class ViewScheduler {
 
   selectionChanged(): void {
     this.version++;
+    for (const [id, c] of this.current) if (!this.visible.has(id)) { c.source.cancel(); this.current.delete(id); }
     for (const id of this.visible) this.refresh(id);
   }
 
@@ -62,6 +63,7 @@ export class ViewScheduler {
     this.settings[viewId] = { ...this.settingsOf(viewId), ...patch };
     this.computedFor.delete(viewId);
     if (this.visible.has(viewId)) this.refresh(viewId);
+    else { this.current.get(viewId)?.source.cancel(); this.current.delete(viewId); }
   }
 
   refresh(viewId: string): void {
