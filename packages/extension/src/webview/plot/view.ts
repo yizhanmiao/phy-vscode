@@ -3,11 +3,21 @@ export interface Range {
   max: number;
 }
 
-/** Scale a range by `factor` around the data value `at` (factor < 1 zooms in). */
-export const zoomRange = (r: Range, factor: number, at: number): Range => ({
-  min: at - (at - r.min) * factor,
-  max: at + (r.max - at) * factor,
-});
+/** Narrowest span zooming in may reach: below this the floating-point spacing of the values swallows tick steps and GPU precision. */
+const minSpan = (r: Range): number => 1e-6 * Math.max(1, Math.abs((r.min + r.max) / 2));
+
+/** Scale a range by `factor` around the data value `at` (factor < 1 zooms in, but never below the minimum span; zooming out always works). */
+export const zoomRange = (r: Range, factor: number, at: number): Range => {
+  const span = r.max - r.min;
+  if (factor < 1) {
+    if (span <= minSpan(r)) return r;
+    factor = Math.max(factor, minSpan(r) / span);
+  }
+  return {
+    min: at - (at - r.min) * factor,
+    max: at + (r.max - at) * factor,
+  };
+};
 
 /** Shift a range by `fraction` of its width. */
 export const panRange = (r: Range, fraction: number): Range => {

@@ -10,6 +10,14 @@ describe('ticks', () => {
     expect(niceTicks(-0.023, 0.027)).toEqual([-0.02, -0.01, 0, 0.01, 0.02]);
     expect(niceTicks(3, 3)).toEqual([3]);
   });
+  it('terminates when the step falls below the floating-point spacing of the values', () => {
+    // each of these never advanced `v += step` (or ran away) before the cap
+    for (const [lo, hi] of [[3000, 3000 + 1e-12], [1e15, 1e15 + 1], [1e15, 1e15 + 0.125]]) {
+      const t = niceTicks(lo, hi);
+      expect(t.length).toBeGreaterThan(0);
+      expect(t.length).toBeLessThanOrEqual(1000);
+    }
+  });
   it('formats compactly', () => {
     expect(formatTick(0.1 + 0.2)).toBe('0.3');
     expect(formatTick(25000)).toBe('2.5e+4');
@@ -21,6 +29,23 @@ describe('view ranges', () => {
   it('zooms around a point and pans by a fraction', () => {
     expect(zoomRange({ min: 0, max: 10 }, 0.5, 4)).toEqual({ min: 2, max: 7 });
     expect(panRange({ min: 0, max: 10 }, 0.1)).toEqual({ min: 1, max: 11 });
+  });
+  it('refuses to zoom in below the minimum span but always zooms out', () => {
+    const tiny = { min: 3000, max: 3000 + 1e-6 * 3000 }; // exactly the minimum span at |centre| ~ 3000
+    expect(zoomRange(tiny, 0.5, 3000)).toBe(tiny);
+    const unit = { min: 0, max: 1e-6 }; // minimum span near zero is 1e-6
+    expect(zoomRange(unit, 0.5, 0)).toBe(unit);
+    expect(zoomRange(unit, 2, 0)).toEqual({ min: 0, max: 2e-6 });
+    // one huge wheel step clamps at the minimum span instead of collapsing the range
+    const r = zoomRange({ min: 0, max: 10 }, 1e-12, 5);
+    expect(r.max - r.min).toBeCloseTo(1e-6 * 5, 12);
+    expect(5).toBeGreaterThan(r.min);
+    expect(5).toBeLessThan(r.max);
+  });
+  it('can wheel-zoom in from the full range a few hundred times without leaving the plottable zone', () => {
+    let r = { min: -377, max: 7916 };
+    for (let i = 0; i < 400; i++) r = zoomRange(r, Math.exp(-0.2), 3000);
+    expect(r.max - r.min).toBeGreaterThanOrEqual(1e-6 * 3000 * 0.999);
   });
   it('pads finite values and survives degenerate input', () => {
     expect(paddedRange(Float32Array.from([0, 10, NaN]))).toEqual({ min: -0.5, max: 10.5 });
