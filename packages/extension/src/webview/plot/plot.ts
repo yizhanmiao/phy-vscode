@@ -1,7 +1,7 @@
 import { AXIS_INSET, BARE_INSET, barTriangles, gridRects, inset, interleave, lineJitter, parseColor, polylineSegments, toCss, withAlpha, type Rect } from './geometry';
 import type { Layer, Panel, Rgba, Scene } from './scene';
 import { formatTick, niceTicks } from './ticks';
-import { panRange, zoomRange, type Range } from './view';
+import { carryView, panRange, zoomRange, type Range } from './view';
 
 export interface Theme {
   fg: Rgba;
@@ -308,8 +308,12 @@ export function createPlot(container: HTMLElement): Plot {
   return {
     setScene(next) {
       release();
+      const prev = panels.length === next.panels.length ? panels : []; // a different panel count resets every view
       scene = next;
-      panels = next.panels.map((panel) => ({ panel, view: { x: panel.x, y: panel.y }, gpu: panel.layers.map(upload) }));
+      panels = next.panels.map((panel, i) => {
+        const was = prev[i];
+        return { panel, view: carryView(was && { x: was.panel.x, y: was.panel.y, view: was.view }, panel), gpu: panel.layers.map(upload) };
+      });
       schedule();
     },
     onClick(listener) {

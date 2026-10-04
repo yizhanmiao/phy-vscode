@@ -19,6 +19,16 @@ export const zoomRange = (r: Range, factor: number, at: number): Range => {
   };
 };
 
+const sameRange = (a: Range, b: Range): boolean => a.min === b.min && a.max === b.max; // NaN is never equal
+
+/** View of a panel after a redraw: keep the user's zoom/pan while the data ranges are unchanged, otherwise reset to them. */
+export function carryView(
+  prev: { x: Range; y: Range; view: { x: Range; y: Range } } | undefined,
+  next: { x: Range; y: Range },
+): { x: Range; y: Range } {
+  return prev && sameRange(prev.x, next.x) && sameRange(prev.y, next.y) ? prev.view : { x: next.x, y: next.y };
+}
+
 /** Shift a range by `fraction` of its width. */
 export const panRange = (r: Range, fraction: number): Range => {
   const d = (r.max - r.min) * fraction;

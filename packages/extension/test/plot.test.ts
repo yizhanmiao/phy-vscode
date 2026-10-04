@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { barTriangles, gridRects, inset, interleave, lineJitter, parseColor, polylineSegments, toCss, withAlpha } from '../src/webview/plot/geometry';
 import { colorOf } from '../src/webview/plot/renderer';
 import { formatTick, niceTicks } from '../src/webview/plot/ticks';
-import { paddedRange, panRange, zoomRange } from '../src/webview/plot/view';
+import { carryView, paddedRange, panRange, zoomRange } from '../src/webview/plot/view';
 
 describe('ticks', () => {
   it('picks 1-2-5 steps', () => {
@@ -46,6 +46,23 @@ describe('view ranges', () => {
     let r = { min: -377, max: 7916 };
     for (let i = 0; i < 400; i++) r = zoomRange(r, Math.exp(-0.2), 3000);
     expect(r.max - r.min).toBeGreaterThanOrEqual(1e-6 * 3000 * 0.999);
+  });
+  it('keeps the zoomed view across a redraw only while the data ranges are unchanged', () => {
+    const r = (min: number, max: number) => ({ min, max });
+    const next = { x: r(0, 10), y: r(0, 5) };
+    const zoomed = { x: r(2, 4), y: r(1, 2) };
+    const prev = { ...next, view: zoomed };
+    expect(carryView(prev, next)).toBe(zoomed);
+    expect(carryView(prev, { x: r(0, 11), y: r(0, 5) })).toEqual({ x: r(0, 11), y: r(0, 5) });
+    expect(carryView(prev, { x: r(0, 10), y: r(-1, 5) })).toEqual({ x: r(0, 10), y: r(-1, 5) });
+    expect(carryView(prev, { x: r(1, 10), y: r(0, 5) })).toEqual({ x: r(1, 10), y: r(0, 5) });
+    expect(carryView(prev, { x: r(0, 10), y: r(0, 6) })).toEqual({ x: r(0, 10), y: r(0, 6) });
+    expect(carryView(undefined, next)).toEqual(next);
+    // a reset view is the new data ranges, never an alias of the old zoom
+    expect(carryView(prev, { x: r(0, 11), y: r(0, 5) })).not.toBe(zoomed);
+    // NaN never compares equal, so a NaN range always resets
+    const nan = { x: r(NaN, 1), y: r(0, 1) };
+    expect(carryView({ ...nan, view: zoomed }, nan)).toEqual(nan);
   });
   it('pads finite values and survives degenerate input', () => {
     expect(paddedRange(Float32Array.from([0, 10, NaN]))).toEqual({ min: -0.5, max: 10.5 });
