@@ -1,4 +1,5 @@
 import { sceneRenderer } from '../../webview/plot/renderer';
-import { EMPTY } from '../../webview/plot/scene';
+import type { AmplitudeMeta } from './provider';
+import { buildAmplitudeScene } from './scene';
 
-export default sceneRenderer((_meta, buffers, selection) => EMPTY(selection.ids.length ? `Amplitude: ${buffers.length} buffers received` : 'Select a cluster'));
+export default sceneRenderer((meta, buffers, selection, theme) => buildAmplitudeScene(meta as AmplitudeMeta, buffers, selection, theme));
