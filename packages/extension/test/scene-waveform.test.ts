@@ -21,6 +21,23 @@ describe('waveform scene', () => {
     expect(boxSize([0, 0, 16, 0, 0, 20], [0, 1, 2]).w).toBeCloseTo(14.4);
   });
 
+  it('sizes the box height from the pitch within a column on a staggered probe', () => {
+    // two columns (x 0 and 22.5), each on a 25 µm pitch, offset by 12.5 µm: boxes in different columns cannot overlap
+    const stagger = [0, 0, 22.5, 12.5, 0, 25, 22.5, 37.5, 0, 50, 22.5, 62.5];
+    const b = boxSize(stagger, [0, 1, 2, 3, 4, 5]);
+    expect(b.w).toBeCloseTo(20.25);
+    expect(b.h).toBeCloseTo(22.5);
+    // a subset that only spans one column still uses its own pitch
+    expect(boxSize(stagger, [0, 2, 4])).toEqual({ w: 36, h: 22.5 });
+  });
+
+  it('keeps the single-column and fallback sizes', () => {
+    expect(boxSize([0, 0, 0, 20, 0, 45], [0, 1, 2])).toEqual({ w: 36, h: 18 });
+    expect(boxSize([5, 5], [0])).toEqual({ w: 36, h: 36 });
+    // two columns on the same row: no pair shares a column, so the height falls back to 40 µm
+    expect(boxSize([0, 0, 30, 0], [0, 1])).toEqual({ w: 27, h: 36 });
+  });
+
   it('draws each channel at its probe position, spikes faint and the mean opaque', () => {
     const s = buildWaveformScene(meta, buffers, sel, theme, { meanOnly: false, showTemplate: false });
     expect(s.panels).toHaveLength(1);

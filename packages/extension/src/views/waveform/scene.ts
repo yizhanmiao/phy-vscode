@@ -13,15 +13,24 @@ export interface WaveformOptions {
 const BUFFERS_PER_CLUSTER = 3; // waveforms, mean, template
 const MEAN_WIDTH = 2.5; // mean is bold; spikes stay thin (width 1)
 
-/** Box per channel: 90 % of the smallest spacing between distinct x (and y) positions; 40 µm when single. */
+/**
+ * Box per channel: 90 % of the smallest spacing between distinct x positions for the width, and of the smallest y gap between
+ * channels sharing a column (x distance < box width) for the height, so a staggered probe's other column cannot shrink it.
+ * 40 µm when there is no such spacing.
+ */
 export function boxSize(positions: number[], channels: number[]): { w: number; h: number } {
-  const gap = (axis: 0 | 1) => {
-    const v = [...new Set(channels.map((c) => positions[2 * c + axis]))].sort((a, b) => a - b);
-    let g = Infinity;
-    for (let i = 1; i < v.length; i++) g = Math.min(g, v[i] - v[i - 1]);
-    return Number.isFinite(g) ? g : 40;
-  };
-  return { w: 0.9 * gap(0), h: 0.9 * gap(1) };
+  const xs = [...new Set(channels.map((c) => positions[2 * c]))].sort((a, b) => a - b);
+  let gx = Infinity;
+  for (let i = 1; i < xs.length; i++) gx = Math.min(gx, xs[i] - xs[i - 1]);
+  const w = 0.9 * (Number.isFinite(gx) ? gx : 40);
+  let gy = Infinity;
+  for (let i = 0; i < channels.length; i++) {
+    for (let j = i + 1; j < channels.length; j++) {
+      const dy = Math.abs(positions[2 * channels[i] + 1] - positions[2 * channels[j] + 1]);
+      if (dy > 0 && Math.abs(positions[2 * channels[i]] - positions[2 * channels[j]]) < w) gy = Math.min(gy, dy);
+    }
+  }
+  return { w, h: 0.9 * (Number.isFinite(gy) ? gy : 40) };
 }
 
 /** phy Waveform view: every channel's traces drawn in a box at its probe position. */
