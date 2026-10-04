@@ -1,0 +1,9 @@
+[project]
+name = "theia-phy-goldens"
+version = "0"
+description = "Dev-only golden values for Theia-Phy tests (never needed to run tests)"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2", "scipy>=1.13", "phylib>=2.6"]
+
+[tool.uv]
+package = false
