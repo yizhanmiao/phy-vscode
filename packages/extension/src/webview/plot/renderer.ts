@@ -40,11 +40,12 @@ export function sceneRenderer(build: SceneBuilder): () => ViewRenderer {
   };
 }
 
-/** Small control strip pinned to the top-right of a view body. */
+/** Small control row between a view's header and its plot body (`el`); it takes layout space instead of covering the plot. */
 export function addToolbar(el: HTMLElement): HTMLElement {
   const bar = document.createElement('div');
   bar.className = 'phy-toolbar';
-  el.append(bar);
+  if (el.parentElement) el.before(bar);
+  else el.append(bar);
   return bar;
 }
 

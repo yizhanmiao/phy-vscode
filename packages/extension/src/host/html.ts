@@ -31,7 +31,7 @@ export const BASE_CSS =
   '.phy-header{font-size:11px;padding:2px 6px;min-height:16px;color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
   '.phy-header.error{color:var(--vscode-errorForeground)}' +
   '.phy-body{flex:1;position:relative;min-height:0}' +
-  '.phy-toolbar{position:absolute;top:2px;right:6px;z-index:2;display:flex;gap:8px;align-items:center;font-size:11px}' +
+  '.phy-toolbar{display:flex;justify-content:flex-end;gap:8px;align-items:center;font-size:11px;padding:0 6px}' +
   '.phy-toolbar input[type=number]{width:4.5em;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,transparent)}';
 
 export const nonce = (): string => randomBytes(16).toString('base64');
