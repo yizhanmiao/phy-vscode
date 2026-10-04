@@ -13,14 +13,27 @@
     "workspace"
   ],
   "main": "./dist/extension.cjs",
-  "capabilities": { "untrustedWorkspaces": { "supported": true } },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
-    "commands": [{ "command": "phy.openDataset", "title": "Phy: Open Dataset…" }],
+    "commands": [
+      {
+        "command": "phy.openDataset",
+        "title": "Phy: Open Dataset…"
+      }
+    ],
     "customEditors": [
       {
         "viewType": "theiaPhy.dataset",
         "displayName": "Phy Dataset",
-        "selector": [{ "filenamePattern": "params.py" }],
+        "selector": [
+          {
+            "filenamePattern": "params.py"
+          }
+        ],
         "priority": "option"
       }
     ]
@@ -32,7 +45,8 @@
     "fixtures": "tsx test/fixtures/cli.ts",
     "test:smoke": "node esbuild.mjs && tsx test/smoke/run.ts",
     "check:real": "node esbuild.mjs && tsx scripts/check-real.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "package": "node esbuild.mjs && npx -y @vscode/vsce package --no-dependencies --allow-missing-repository --skip-license"
   },
   "dependencies": {
     "@theia-phy/api": "0.1.0"

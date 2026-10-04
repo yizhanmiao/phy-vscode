@@ -1,10 +1,13 @@
 {
   "name": "theia-phy-workspace",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "build": "npm run build -w packages/extension",
     "test": "npm test -w packages/extension",
-    "typecheck": "npm run typecheck -w packages/extension"
+    "typecheck": "npm run typecheck -w packages/extension",
+    "package": "npm run package -w packages/extension"
   }
 }

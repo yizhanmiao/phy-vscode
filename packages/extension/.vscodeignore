@@ -1,0 +1,5 @@
+**
+!dist/extension.cjs
+!dist/worker.cjs
+!package.json
+!README.md
