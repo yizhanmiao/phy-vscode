@@ -23,8 +23,20 @@
       {
         "command": "phy.openDataset",
         "title": "Phy: Open Dataset…"
+      },
+      {
+        "command": "phy.view.toggle",
+        "title": "Phy: Toggle View…"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "phy.view.toggle",
+          "when": "phyDatasetActive"
+        }
+      ]
+    },
     "customEditors": [
       {
         "viewType": "theiaPhy.dataset",

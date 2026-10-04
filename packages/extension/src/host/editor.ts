@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
+import type { Compute } from '../compute';
 import { openDataset } from './dataset/dataset';
-import { errorHtml, summaryHtml } from './html';
+import { errorHtml } from './html';
+import { PlotPanel } from './plotPanel';
 import { Session } from './session';
 
 class DatasetDocument implements vscode.CustomDocument {
@@ -11,10 +13,20 @@ class DatasetDocument implements vscode.CustomDocument {
   }
 }
 
+export interface EditorContext {
+  storage: vscode.Uri;
+  extensionUri: vscode.Uri;
+  state: vscode.Memento;
+  compute: Compute;
+}
+
 export class DatasetEditorProvider implements vscode.CustomReadonlyEditorProvider<DatasetDocument> {
   activeSession: Session | undefined;
+  activePanel: PlotPanel | undefined;
+  private readonly activeEmitter = new vscode.EventEmitter<Session | undefined>();
+  readonly onDidChangeActiveSession = this.activeEmitter.event;
 
-  constructor(private readonly storage: vscode.Uri) {}
+  constructor(private readonly ctx: EditorContext) {}
 
   async openCustomDocument(uri: vscode.Uri): Promise<DatasetDocument> {
     try {
@@ -22,10 +34,13 @@ export class DatasetEditorProvider implements vscode.CustomReadonlyEditorProvide
         { location: vscode.ProgressLocation.Notification, title: 'Opening phy dataset' },
         (progress) =>
           openDataset(uri.fsPath, {
-            cacheDir: vscode.Uri.joinPath(this.storage, 'cache').fsPath,
+            cacheDir: vscode.Uri.joinPath(this.ctx.storage, 'cache').fsPath,
             onProgress: (message, f) => progress.report({ message: f === undefined ? message : `${message} ${Math.round(f * 100)}%` }),
           }),
       );
+      if (dataset.metadataErrors.length) {
+        void vscode.window.showWarningMessage(`Phy: skipped metadata ${dataset.metadataErrors.map((m) => `${m.file} (${m.error})`).join('; ')}`);
+      }
       try {
         return new DatasetDocument(uri, new Session(dataset), undefined);
       } catch (e) {
@@ -38,13 +53,35 @@ export class DatasetEditorProvider implements vscode.CustomReadonlyEditorProvide
   }
 
   resolveCustomEditor(doc: DatasetDocument, panel: vscode.WebviewPanel): void {
-    panel.webview.html = doc.session ? summaryHtml(doc.session) : errorHtml(doc.error ?? 'unknown error');
-    this.activeSession = doc.session;
+    const session = doc.session;
+    if (!session) {
+      panel.webview.html = errorHtml(doc.error ?? 'unknown error');
+      return;
+    }
+    const plot = new PlotPanel(panel, session, this.ctx);
+    const activate = () => {
+      this.activePanel = plot;
+      this.setActive(session);
+      void vscode.commands.executeCommand('setContext', 'phyDatasetActive', true);
+    };
+    activate();
     panel.onDidChangeViewState(() => {
-      if (panel.active) this.activeSession = doc.session;
+      if (panel.active) activate();
+      else if (this.activePanel === plot) void vscode.commands.executeCommand('setContext', 'phyDatasetActive', false);
     });
     panel.onDidDispose(() => {
-      if (this.activeSession === doc.session) this.activeSession = undefined;
+      plot.dispose();
+      if (this.activePanel === plot) {
+        this.activePanel = undefined;
+        this.setActive(undefined);
+        void vscode.commands.executeCommand('setContext', 'phyDatasetActive', false);
+      }
     });
+  }
+
+  private setActive(session: Session | undefined): void {
+    if (this.activeSession === session) return;
+    this.activeSession = session;
+    this.activeEmitter.fire(session);
   }
 }

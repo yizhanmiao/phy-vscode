@@ -12,23 +12,16 @@ export function errorHtml(message: string): string {
   return page(`<h2 class="err">Could not open dataset</h2><p>${esc(message)}</p>`);
 }
 
-export function summaryHtml(session: Session): string {
+/** One-line dataset description for the Cluster view header. */
+export function datasetInfo(session: Session): string {
   const ds = session.dataset;
-  const t = ds.templates;
-  const rows: [string, string][] = [
-    ['Folder', ds.dir],
-    ['Spikes', String(ds.nSpikes)],
-    ['Clusters', String(session.clusters.rows.length)],
-    ['Channels', String(ds.nChannels)],
-    ['Duration', `${ds.duration.toFixed(1)} s`],
-    ['Sample rate', `${ds.sampleRate} Hz`],
-    ['Raw data', ds.raw.ok ? `${ds.raw.raw.nSamples} samples × ${ds.raw.raw.nChannels} channels` : ds.raw.reason],
-    ['Templates', t ? `${t.nTemplates} × ${t.nSamples} samples${t.cols ? ' (sparse)' : ''}` : 'missing'],
-    ['Amplitudes', ds.amplitudes ? 'yes' : 'missing'],
-    ['PC features', ds.features ? `${ds.features.nPcs} PCs × ${ds.features.nLoc} channels` : 'missing'],
-  ];
-  if (ds.metadataErrors.length) rows.push(['Skipped metadata', ds.metadataErrors.map((m) => `${m.file} (${m.error})`).join('; ')]);
-  return page(`<h2>Phy dataset</h2><table>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table>`);
+  return [
+    `${ds.nSpikes} spikes`,
+    `${session.clusters.rows.length} clusters`,
+    `${ds.nChannels} channels`,
+    `${ds.duration.toFixed(1)} s`,
+    `raw: ${ds.raw.ok ? 'ok' : ds.raw.reason}`,
+  ].join(' · ');
 }
 
 export const BASE_CSS =

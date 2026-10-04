@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { errorHtml, summaryHtml, webviewHtml } from '../src/host/html';
+import { datasetInfo, errorHtml, webviewHtml } from '../src/host/html';
 import { openSession } from './helpers';
 
 describe('pages', () => {
@@ -9,12 +9,12 @@ describe('pages', () => {
     expect(h).not.toContain('<script>');
     expect(h).toContain("default-src 'none'");
   });
-  it('summarises a dataset including the raw-data reason', async () => {
+  it('summarises a dataset in one line including the raw-data reason', async () => {
     const { session, ds } = await openSession('noraw');
-    const h = summaryHtml(session);
-    expect(h).toContain('raw data not found');
-    expect(h).toContain(`<td>${ds.nSpikes}</td>`);
-    expect(h).toContain('<td>5</td>');
+    const s = datasetInfo(session);
+    expect(s).toContain(`${ds.nSpikes} spikes`);
+    expect(s).toContain('5 clusters');
+    expect(s).toMatch(/raw: raw data not found/);
   });
 });
 
