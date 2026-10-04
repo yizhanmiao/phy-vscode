@@ -13,12 +13,23 @@
     "workspace"
   ],
   "main": "./dist/extension.cjs",
-  "contributes": {},
+  "contributes": {
+    "commands": [{ "command": "phy.openDataset", "title": "Phy: Open Dataset…" }],
+    "customEditors": [
+      {
+        "viewType": "theiaPhy.dataset",
+        "displayName": "Phy Dataset",
+        "selector": [{ "filenamePattern": "params.py" }],
+        "priority": "option"
+      }
+    ]
+  },
   "scripts": {
     "build": "node esbuild.mjs",
     "test": "vitest run",
     "bench": "vitest bench --run",
     "fixtures": "tsx test/fixtures/cli.ts",
+    "test:smoke": "node esbuild.mjs && tsx test/smoke/run.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
