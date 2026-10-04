@@ -29,7 +29,9 @@ describe('waveform scene', () => {
     expect(p.x).toEqual({ min: -36, max: 36 });
     expect(p.y).toEqual({ min: -18, max: 38 });
     const [spikes, m] = p.layers as LinesLayer[];
+    // Spikes are faint (alpha 0.15), have data, and width undefined (repeated width passes compound alpha)
     expect(spikes.color[3]).toBeCloseTo(0.15);
+    expect(spikes.x.length).toBeGreaterThan(0);
     expect(spikes.width).toBeUndefined();
     expect(m.color).toEqual([1, 0, 0, 1]);
     expect(m.width).toEqual(2.5);
@@ -42,6 +44,7 @@ describe('waveform scene', () => {
     const s = buildWaveformScene(meta, buffers, sel, theme, { meanOnly: true, showTemplate: true });
     const layers = s.panels[0].layers as LinesLayer[];
     expect(layers).toHaveLength(2);
+    expect(layers[0].width).toBe(2.5);
     expect(layers[1].width).toBeUndefined();
     expect(arr(layers[1].x)).toEqual([-18, 18, null, -18, 18, null]);
   });
