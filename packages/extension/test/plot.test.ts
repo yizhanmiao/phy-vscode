@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { barTriangles, gridRects, inset, interleave, parseColor, polylineSegments, toCss, withAlpha } from '../src/webview/plot/geometry';
+import { barTriangles, gridRects, inset, interleave, lineJitter, parseColor, polylineSegments, toCss, withAlpha } from '../src/webview/plot/geometry';
 import { colorOf } from '../src/webview/plot/renderer';
 import { formatTick, niceTicks } from '../src/webview/plot/ticks';
 import { paddedRange, panRange, zoomRange } from '../src/webview/plot/view';
@@ -43,6 +43,13 @@ describe('geometry', () => {
   it('builds two triangles per bar, optionally horizontal', () => {
     expect(Array.from(barTriangles(0, 1, Float32Array.from([2]), false))).toEqual([0, 0, 1, 0, 1, 2, 0, 0, 1, 2, 0, 2]);
     expect(Array.from(barTriangles(0, 1, Float32Array.from([2]), true))).toEqual([0, 0, 0, 1, 2, 1, 0, 0, 2, 1, 2, 0]);
+  });
+  it('jitters a line to approximate its width', () => {
+    for (const w of [1, 0, -3, NaN, Infinity]) expect(lineJitter(w)).toEqual([[0, 0]]);
+    expect(lineJitter(1.4)).toEqual([[0, 0]]);
+    expect(lineJitter(2)).toEqual([[-0.5, 0], [0, -0.5], [0.5, 0], [0, 0.5]]);
+    expect(lineJitter(3)).toEqual([[-1, 0], [0, -1], [0, 0], [1, 0], [0, 1]]);
+    expect(lineJitter(100)).toHaveLength(16);
   });
   it('parses theme colours', () => {
     expect(parseColor('#ff0000')).toEqual([1, 0, 0, 1]);

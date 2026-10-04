@@ -91,6 +91,19 @@ export function barTriangles(x0: number, dx: number, heights: ArrayLike<number>,
   return out;
 }
 
+/** CSS-px (dx, dy) offsets at which a 1 px line is redrawn to approximate `width` (at most 8 passes per axis). */
+export function lineJitter(width: number): [number, number][] {
+  if (!Number.isFinite(width) || width <= 1) return [[0, 0]];
+  const n = Math.min(8, Math.round(width));
+  const out: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const o = i - (n - 1) / 2;
+    out.push([o, 0]);
+    if (o !== 0) out.push([0, o]);
+  }
+  return out;
+}
+
 const GREY: Rgba = [0.5, 0.5, 0.5, 1];
 
 /** CSS colour (#rgb, #rrggbb, #rrggbbaa, rgb(), rgba()) → RGBA in 0..1. */

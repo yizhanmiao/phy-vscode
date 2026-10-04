@@ -9,12 +9,13 @@ export interface ScatterLayer {
   color: Rgba;
   size: number; // CSS px
 }
-/** Polylines; consecutive polylines are separated by a NaN vertex. */
+/** Polylines; consecutive polylines are separated by a NaN vertex. `width` is in CSS px (default 1). */
 export interface LinesLayer {
   kind: 'lines';
   x: Float32Array;
   y: Float32Array;
   color: Rgba;
+  width?: number;
 }
 /** Bars starting at x0 with width dx; `horizontal` swaps axes (bars grow along x). */
 export interface BarsLayer {

@@ -1,4 +1,4 @@
-import { AXIS_INSET, BARE_INSET, barTriangles, gridRects, inset, interleave, parseColor, polylineSegments, toCss, withAlpha, type Rect } from './geometry';
+import { AXIS_INSET, BARE_INSET, barTriangles, gridRects, inset, interleave, lineJitter, parseColor, polylineSegments, toCss, withAlpha, type Rect } from './geometry';
 import type { Layer, Panel, Rgba, Scene } from './scene';
 import { formatTick, niceTicks } from './ticks';
 import { panRange, zoomRange, type Range } from './view';
@@ -27,8 +27,9 @@ in vec2 a_pos;
 uniform vec2 u_min;
 uniform vec2 u_max;
 uniform float u_size;
+uniform vec2 u_px;
 void main() {
-  gl_Position = vec4((a_pos - u_min) / (u_max - u_min) * 2.0 - 1.0, 0.0, 1.0);
+  gl_Position = vec4((a_pos - u_min) / (u_max - u_min) * 2.0 - 1.0 + u_px, 0.0, 1.0);
   gl_PointSize = u_size;
 }`;
 const FS = `#version 300 es
@@ -48,6 +49,7 @@ interface GpuLayer {
   color: Rgba;
   size: number;
   round: boolean;
+  width: number; // line width, CSS px
 }
 interface PanelState {
   panel: Panel;
@@ -94,6 +96,7 @@ export function createPlot(container: HTMLElement): Plot {
     min: gl.getUniformLocation(program, 'u_min'),
     max: gl.getUniformLocation(program, 'u_max'),
     size: gl.getUniformLocation(program, 'u_size'),
+    px: gl.getUniformLocation(program, 'u_px'),
     color: gl.getUniformLocation(program, 'u_color'),
     round: gl.getUniformLocation(program, 'u_round'),
   };
@@ -119,6 +122,7 @@ export function createPlot(container: HTMLElement): Plot {
       color: layer.color,
       size: layer.kind === 'scatter' ? layer.size : 1,
       round: layer.kind === 'scatter',
+      width: layer.kind === 'lines' ? layer.width ?? 1 : 1,
     };
   };
   const release = () => panels.forEach((p) => p.gpu.forEach((g) => gl.deleteBuffer(g.buffer)));
@@ -173,7 +177,11 @@ export function createPlot(container: HTMLElement): Plot {
         gl.uniform4f(loc.color, g.color[0], g.color[1], g.color[2], g.color[3]);
         gl.uniform1f(loc.size, g.size * dpr);
         gl.uniform1f(loc.round, g.round ? 1 : 0);
-        gl.drawArrays(g.mode, 0, g.count);
+        // one pass per jitter offset (CSS px -> device px -> clip space); u_px is set for every layer so offsets never leak
+        for (const [dx, dy] of lineJitter(g.width)) {
+          gl.uniform2f(loc.px, (dx * dpr * 2) / vw, (dy * dpr * 2) / vh);
+          gl.drawArrays(g.mode, 0, g.count);
+        }
       }
       decorate(p, a, theme);
     });
@@ -278,7 +286,7 @@ export function createPlot(container: HTMLElement): Plot {
     schedule();
   };
   const handleMouseUp = (ev: MouseEvent) => {
-    if (drag && !drag.moved) {
+    if (drag && !drag.moved && ev.detail <= 1) {
       const t = hit(ev);
       if (t) for (const l of listeners) l({ panel: t.i, x: t.dataX, y: t.dataY, shift: ev.shiftKey, button: ev.button });
     }
