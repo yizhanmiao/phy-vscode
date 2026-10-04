@@ -2,7 +2,7 @@ import type { Cell } from '@theia-phy/api';
 import { describe, expect, it } from 'vitest';
 import { parseFilter } from '../src/webview/sidebar/filter';
 import { clickSelect, isPlainArrow } from '../src/webview/sidebar/selection';
-import { formatCell, groupTint, sortRows, visibleRange } from '../src/webview/sidebar/table';
+import { formatCell, groupTint, scrollTopFor, sortRows, visibleRange } from '../src/webview/sidebar/table';
 
 const columns = ['id', 'n_spikes', 'group', 'ContamPct', 'KSLabel'];
 const rows: Cell[][] = [
@@ -51,6 +51,15 @@ describe('table', () => {
     expect(visibleRange(0, 220, 22, 10_000)).toEqual({ start: 0, end: 15 });
     expect(visibleRange(22_000, 220, 22, 10_000)).toEqual({ start: 995, end: 1015 });
     expect(visibleRange(219_900, 220, 22, 10_000)).toEqual({ start: 9990, end: 10_000 });
+  });
+  it('scrolls to a row only when it is not fully in view', () => {
+    // viewport 220 px = 10 rows of 22 px, scrolled to row 5 (scrollTop 110): rows 5..14 are fully visible
+    expect(scrollTopFor(5, 110, 220, 22)).toBeUndefined();
+    expect(scrollTopFor(14, 110, 220, 22)).toBeUndefined();
+    expect(scrollTopFor(4, 110, 220, 22)).toBe(88); // above: put it at the top edge
+    expect(scrollTopFor(15, 110, 220, 22)).toBe(15 * 22 + 22 - 220); // below: put it at the bottom edge
+    expect(scrollTopFor(500, 110, 220, 22)).toBe(500 * 22 + 22 - 220);
+    expect(scrollTopFor(0, 110, 220, 22)).toBe(0);
   });
   it('sorts 10k rows quickly', () => {
     const big: Cell[][] = Array.from({ length: 10_000 }, (_, i) => [i, (i * 7919) % 10_007, i % 3 ? 'good' : 'mua']);

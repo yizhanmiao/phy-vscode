@@ -3,7 +3,7 @@ import { stepSelection } from '../../shared/order';
 import { vscodeApi } from '../vscode';
 import { parseFilter } from './filter';
 import { clickSelect, isPlainArrow } from './selection';
-import { formatCell, groupTint, sortRows, visibleRange } from './table';
+import { formatCell, groupTint, scrollTopFor, sortRows, visibleRange } from './table';
 
 const ROW_H = 22;
 /** `key` ties the webview's own saved state to one dataset (`api.getState()` is per sidebar, not per dataset). */
@@ -41,6 +41,7 @@ let view: Cell[][] = [];
 let state: LocalState = {};
 let selection: SelectionMsg = { ids: [], colors: [] };
 let anchor: number | undefined;
+let clicked: number[] | undefined; // what the last click posted; the host's echo of it must not scroll
 let debounce: ReturnType<typeof setTimeout> | undefined;
 
 const order = () => view.map((r) => r[0] as number);
@@ -110,6 +111,7 @@ function renderRows(): void {
     el.onclick = (ev) => {
       const res = clickSelect(order(), selection.ids, anchor, id, { ctrl: ev.ctrlKey || ev.metaKey, shift: ev.shiftKey });
       anchor = res.anchor;
+      clicked = res.selected;
       post({ type: 'select', ids: res.selected });
     };
     els.push(el);
@@ -120,9 +122,8 @@ function renderRows(): void {
 function scrollTo(id: number): void {
   const i = order().indexOf(id);
   if (i < 0) return;
-  const top = i * ROW_H;
-  if (top < scroller.scrollTop) scroller.scrollTop = top;
-  else if (top + ROW_H > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = top + ROW_H - scroller.clientHeight;
+  const top = scrollTopFor(i, scroller.scrollTop, scroller.clientHeight, ROW_H);
+  if (top !== undefined) scroller.scrollTop = top;
 }
 
 /**
@@ -179,6 +180,11 @@ window.addEventListener('message', (e: MessageEvent<HostToSidebar>) => {
     renderRows();
   } else if (m.type === 'selection') {
     selection = m.selection;
+    // Selection steered from outside (Alt+↓/↑, other views) can land off-screen: reveal the newest row. A click's own echo must not move the table.
+    const own = clicked && clicked.length === selection.ids.length && clicked.every((v, k) => v === selection.ids[k]);
+    clicked = undefined;
+    const last = selection.ids.at(-1);
+    if (!own && last !== undefined) scrollTo(last);
     renderRows();
   } else {
     clearTimeout(debounce);

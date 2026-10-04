@@ -22,6 +22,14 @@ export function visibleRange(scrollTop: number, viewport: number, rowH: number, 
   };
 }
 
+/** New scrollTop that brings row `index` fully into view, or undefined when it already is. */
+export function scrollTopFor(index: number, scrollTop: number, viewport: number, rowH: number): number | undefined {
+  const top = index * rowH;
+  if (top < scrollTop) return top;
+  if (top + rowH > scrollTop + viewport) return top + rowH - viewport;
+  return undefined;
+}
+
 export function formatCell(c: Cell): string {
   if (c === null) return '';
   if (typeof c === 'number') return Number.isInteger(c) ? String(c) : String(Number(c.toPrecision(4)));
