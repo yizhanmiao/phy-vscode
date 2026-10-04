@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,5 +45,27 @@ describe('WorkerPool', () => {
     const p = new WorkerPool(join(tmpdir(), 'unused.cjs'), 0);
     await p.dispose();
     await expect(p.run('correlograms', times, spikes, labels, 3, 30, 25)).rejects.toThrow(/disposed/);
+  });
+
+  it('rejects instead of hanging when the worker script throws at load', async () => {
+    const bad = join(mkdtempSync(join(tmpdir(), 'bad-')), 'bad.cjs');
+    writeFileSync(bad, "throw new Error('boom');");
+    const p = new WorkerPool(bad, 1);
+    await expect(p.run('correlograms', times, spikes, labels, 3, 30, 25)).rejects.toThrow(/boom/);
+    await expect(p.run('correlograms', times, spikes, labels, 3, 30, 25)).rejects.toThrow(/boom/);
+    await expect(p.run('correlograms', times, spikes, labels, 3, 30, 25)).rejects.toThrow(/keeps failing|boom/);
+    await expect(p.run('correlograms', times, spikes, labels, 3, 30, 25)).rejects.toThrow(/bad\.cjs keeps failing/);
+    await p.dispose();
+  });
+
+  it('rejects in-flight and queued jobs at dispose', async () => {
+    const p = new WorkerPool((pool as unknown as { script: string }).script, 1);
+    const jobs = [0, 1, 2].map(() => p.run('correlograms', times, spikes, labels, 3, 30, 25));
+    const settled = Promise.allSettled(jobs);
+    await p.dispose();
+    for (const r of await settled) {
+      expect(r.status).toBe('rejected');
+      expect((r as PromiseRejectedResult).reason.message).toMatch(/disposed/);
+    }
   });
 });

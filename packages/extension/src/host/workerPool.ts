@@ -2,6 +2,8 @@ import { availableParallelism } from 'node:os';
 import { Worker } from 'node:worker_threads';
 import type { Compute, ComputeFns, ComputeName } from '../compute';
 
+const MAX_DEATHS = 3;
+
 interface Job {
   name: ComputeName;
   args: unknown[];
@@ -14,6 +16,8 @@ export class WorkerPool implements Compute {
   private readonly queue: Job[] = [];
   private readonly running = new Map<Worker, Job>();
   private disposed = false;
+  private deaths = 0; // consecutive worker deaths with no job completed
+  private broken: Error | undefined;
 
   constructor(private readonly script: string, size = Math.max(1, Math.min(4, availableParallelism() - 1))) {
     for (let i = 0; i < size; i++) this.spawn();
@@ -21,6 +25,7 @@ export class WorkerPool implements Compute {
 
   run<K extends ComputeName>(name: K, ...args: Parameters<ComputeFns[K]>): Promise<ReturnType<ComputeFns[K]>> {
     if (this.disposed) return Promise.reject(new Error('worker pool disposed'));
+    if (this.broken) return Promise.reject(this.broken);
     return new Promise((resolve, reject) => {
       this.queue.push({ name, args, resolve: resolve as (v: unknown) => void, reject });
       this.pump();
@@ -41,6 +46,7 @@ export class WorkerPool implements Compute {
   private spawn(): void {
     const w = new Worker(this.script);
     w.on('message', (m: { result?: unknown; error?: string }) => {
+      this.deaths = 0;
       const job = this.running.get(w);
       this.running.delete(w);
       this.idle.push(w);
@@ -50,13 +56,22 @@ export class WorkerPool implements Compute {
       }
       this.pump();
     });
-    w.on('error', (e: Error) => {
-      this.running.get(w)?.reject(e);
+    let cause: Error | undefined;
+    w.on('error', (e: Error) => { cause = e; });
+    w.on('exit', (code) => {
+      const job = this.running.get(w);
       this.running.delete(w);
-      if (!this.disposed) {
-        this.spawn();
-        this.pump();
+      const i = this.idle.indexOf(w);
+      if (i >= 0) this.idle.splice(i, 1);
+      job?.reject(cause ?? new Error(`worker exited with code ${code}`));
+      if (this.disposed) return;
+      if (++this.deaths >= MAX_DEATHS) {
+        this.broken = new Error(`worker script ${this.script} keeps failing: ${cause?.message ?? `exit code ${code}`}`);
+        for (const j of this.queue.splice(0)) j.reject(this.broken);
+        return;
       }
+      this.spawn();
+      this.pump();
     });
     this.idle.push(w);
   }
