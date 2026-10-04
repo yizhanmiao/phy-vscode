@@ -7,7 +7,7 @@ A VS Code extension for browsing [phy](https://phy.readthedocs.io/)/Kilosort spi
 > - **Read-only.** You can browse and select clusters. Curation (merge, split, relabel, undo) isn't implemented, and nothing is written back to the dataset.
 > - **Incomplete.** phy's Similarity, Trace, Probe and Raster views are missing.
 > - **Unstable.** Expect bugs and breaking changes. The mod/plugin API in `packages/api` isn't stable yet.
-> - **Not published** to the VS Code Marketplace. Build from source (see below).
+> - **Not on the VS Code Marketplace.** Download the `.vsix` from [Releases](../../releases) or build it from source (see [Install](#install)).
 > - Tested on one Kilosort 4 dataset and synthetic fixtures. Check results against phy before you rely on them.
 
 ![phy-vscode showing the Clusters table and the five plot views on a Kilosort 4 dataset](docs/screenshots/phy-vscode-ui.png)
@@ -31,11 +31,21 @@ Design: [docs/superpowers/specs/2026-10-03-phy-vscode-extension-design.md](docs/
 ## Requirements
 
 - VS Code 1.95 or newer (desktop, including Remote-SSH)
-- Node.js 20 or newer and npm, to build from source
+- Node.js 20 or newer and npm, only if you build from source
 
 ## Install
 
-### Option A: package and install a `.vsix` (recommended)
+### Option A: download the `.vsix` (easiest)
+
+Download `phy-vscode-<version>.vsix` from the [latest release](../../releases/latest). Then install it in VS Code by either:
+- **Extensions view:** open `⋯` → **Install from VSIX…** and pick the downloaded file.
+- **Command line:** `code --install-extension phy-vscode-<version>.vsix`
+
+**Remote-SSH:** the extension runs on the machine that has the data. Connect to the remote first, then install the `.vsix` from the Extensions view; VS Code installs it on the remote side.
+
+To update, download the newer `.vsix` from [Releases](../../releases) and install it the same way.
+
+### Option B: build the `.vsix` yourself
 
 ```bash
 git clone <this repo> phy-vscode && cd phy-vscode
@@ -43,15 +53,9 @@ npm install
 npm run package          # writes packages/extension/phy-vscode-0.0.1.vsix
 ```
 
-Then install that file in VS Code by either:
-- **Extensions view:** open `⋯` → **Install from VSIX…** and pick `packages/extension/phy-vscode-0.0.1.vsix`.
-- **Command line:** `code --install-extension packages/extension/phy-vscode-0.0.1.vsix`
+Install `packages/extension/phy-vscode-0.0.1.vsix` as in Option A. To update, pull, run `npm run package` again and reinstall.
 
-**Remote-SSH:** the extension runs on the machine that has the data. Connect to the remote first, then install the `.vsix` from the Extensions view; VS Code installs it on the remote side.
-
-To update, pull, run `npm run package` again and reinstall the new `.vsix`.
-
-### Option B: run from source (development)
+### Option C: run from source (development)
 
 ```bash
 npm install
@@ -90,6 +94,16 @@ Run from the repo root:
 | `npm run test:smoke -w packages/extension` | Launches a real VS Code (downloaded into `.vscode-test/`) against the fixture |
 | `npm run bench -w packages/extension` | Performance-gate benchmarks |
 | `npm run check:real -w packages/extension -- <dataset dir> [--dat <raw.bin>]` | Opens a real dataset and times every view (`--dat` overrides `dat_path` without touching the dataset) |
+
+### Publishing a release
+
+Bump `version` in `packages/extension/package.json`, then:
+
+```bash
+npm run package
+git tag v<version> && git push origin v<version>
+gh release create v<version> packages/extension/phy-vscode-<version>.vsix --title "v<version>" --notes "Proof of concept, read-only."
+```
 
 ### Python goldens (dev only, optional)
 
