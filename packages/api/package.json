@@ -1,0 +1,7 @@
+{
+  "name": "@theia-phy/api",
+  "version": "0.1.0",
+  "description": "Public types for Theia-Phy views and mods",
+  "types": "src/index.ts",
+  "main": "src/index.ts"
+}

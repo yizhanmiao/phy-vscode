@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-test/
+.vscode-test/
+*.vsix
+packages/extension/test/fixtures/out/
+tools/goldens/.venv/
+/dataset/
+.omc/
+.DS_Store

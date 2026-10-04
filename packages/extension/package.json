@@ -1,0 +1,36 @@
+{
+  "name": "theia-phy",
+  "displayName": "Theia-Phy",
+  "description": "Browse phy/Kilosort spike-sorting datasets in VS Code.",
+  "publisher": "theia-phy",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/extension.cjs",
+  "contributes": {},
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "test": "vitest run",
+    "bench": "vitest bench --run",
+    "fixtures": "tsx test/fixtures/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@theia-phy/api": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/vscode": "~1.95.0",
+    "@vscode/test-electron": "^3.1.0",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
