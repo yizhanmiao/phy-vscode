@@ -2,9 +2,8 @@
 
 A VS Code extension for browsing [phy](https://phy.readthedocs.io/)/Kilosort spike-sorting datasets, written in pure TypeScript with no Python at runtime.
 
-**Status: Plan 1 of 3.**
-- The extension opens a dataset folder. It shows a summary page (spikes, clusters, channels, raw-data status), or an error page naming the missing or bad file.
-- The data for the five phy views (Waveform, Feature, Correlogram, Amplitude, Cluster statistics) is computed, but the plot UI is not built yet (Plan 2).
+**Status: Plan 2 of 3.**
+- The extension opens a dataset folder and shows the Clusters sidebar view (a sortable, filterable table of the active dataset) and the five tiled plot views (Waveform, Feature, Correlogram, Amplitude, Cluster statistics). An error page still names a missing or bad file.
 - Mods and plugins come in Plan 3.
 
 Design: [docs/superpowers/specs/2026-10-03-phy-vscode-extension-design.md](docs/superpowers/specs/2026-10-03-phy-vscode-extension-design.md)
@@ -45,8 +44,18 @@ Open the repo folder in VS Code and press **F5** ("Run Theia-Phy"). It builds fi
 - **Command Palette:** run **Phy: Open Dataset…** and pick the folder that contains `params.py` (the Kilosort/phy output folder).
 - **Explorer:** right-click a `params.py` → **Open With…** → **Phy Dataset**. Ordinary Python editing of `params.py` is unaffected.
 
+The **Phy** activity-bar icon opens the **Clusters** view, a sortable, filterable table of the active dataset.
+- **Selecting:** click to select, Ctrl/Cmd-click to add, Shift-click for a range; ↑/↓ move through the table and Shift+↑/↓ extend.
+- **Next/previous anywhere:** **Alt+↓ / Alt+↑** (`phy.selectNext` / `phy.selectPrevious`) select the next or previous cluster in the table's current order from anywhere in the dataset editor. You can rebind them in Keyboard Shortcuts.
+- **Filter syntax:** for example `n_spikes > 100 and group == good`.
+
+The dataset editor tiles the Waveform, Feature, Correlogram, Amplitude and Cluster statistics views.
+- **Layout:** drag tabs to re-dock. **Phy: Toggle View…** hides or shows a view.
+- **Interaction:** wheel zooms (Shift+wheel zooms x only), dragging pans, double-click resets.
+- **Persistence:** layout, table sort and filter, and view settings are remembered per dataset.
+
 Notes:
-- **Raw data:** the raw `.bin` is found through `dat_path` in `params.py`; relative paths are resolved against the `params.py` folder. If the raw file is missing or its size doesn't match `n_channels_dat`/`dtype`/`offset`, the dataset still opens. The summary page shows the reason, and waveforms fall back to templates.
+- **Raw data:** the raw `.bin` is found through `dat_path` in `params.py`; relative paths are resolved against the `params.py` folder. If the raw file is missing or its size doesn't match `n_channels_dat`/`dtype`/`offset`, the dataset still opens. The Waveform view's header shows the reason, and the view falls back to templates.
 - **Fortran-ordered files:** large Fortran-ordered `.npy` files (e.g. `pc_features.npy` from MATLAB Kilosort) are converted once into a C-order cache in VS Code's extension storage. The dataset folder is never written to.
 
 ## Development
