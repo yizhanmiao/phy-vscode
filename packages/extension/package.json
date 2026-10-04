@@ -27,9 +27,10 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "test": "vitest run",
-    "bench": "vitest bench --run",
+    "bench": "vitest bench --run --reporter=default",
     "fixtures": "tsx test/fixtures/cli.ts",
     "test:smoke": "node esbuild.mjs && tsx test/smoke/run.ts",
+    "check:real": "node esbuild.mjs && tsx scripts/check-real.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
