@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { Theme } from '../src/webview/plot/plot';
-import type { ScatterLayer } from '../src/webview/plot/scene';
-import { buildFeatureScene, cycleDim, DEFAULT_GRID, dimValues, parseDim } from '../src/views/feature/scene';
+import type { Plot, PlotClick, Theme } from '../src/webview/plot/plot';
+import type { RendererHost } from '../src/webview/plot/renderer';
+import type { Scene, ScatterLayer } from '../src/webview/plot/scene';
+import featureRenderer from '../src/views/feature/renderer';
+import { buildFeatureScene, cycleDim, DEFAULT_GRID, dimValues, parseDim, validGrid } from '../src/views/feature/scene';
 import type { FeatureMeta } from '../src/views/feature/provider';
 
 const theme: Theme = { fg: [1, 1, 1, 1], muted: [0.5, 0.5, 0.5, 1], bg: [0, 0, 0, 1] };
@@ -50,5 +52,39 @@ describe('feature scene', () => {
 
   it('keeps the default grid shape', () => {
     expect(DEFAULT_GRID.map((r) => r.length)).toEqual([4, 4, 4, 4]);
+  });
+});
+
+describe('persisted feature grid', () => {
+  it('accepts only a non-empty rectangular grid of well-formed cells', () => {
+    const ok = [['time,0A', '1A,0B']];
+    expect(validGrid(ok)).toBe(ok);
+    expect(validGrid(DEFAULT_GRID)).toBe(DEFAULT_GRID);
+    expect(validGrid('grid')).toBeUndefined();
+    expect(validGrid({ length: 1 })).toBeUndefined();
+    expect(validGrid(undefined)).toBeUndefined();
+    expect(validGrid([])).toBeUndefined();
+    expect(validGrid([[]])).toBeUndefined();
+    expect(validGrid([['time,0A', '1A,0A'], ['0A,1A']])).toBeUndefined(); // ragged
+    expect(validGrid([['time,0A'], 'time,0A'])).toBeUndefined(); // row is not an array
+    expect(validGrid([['time,0A', 7]])).toBeUndefined(); // cell is not a string
+    expect(validGrid([['0A']])).toBeUndefined(); // one-part cell
+    expect(validGrid([['0A,x']])).toBeUndefined(); // bad half
+    expect(validGrid([['0A,1B,time']])).toBeUndefined(); // three parts
+  });
+
+  it('falls back to the default grid, and clicks stay safe, when the saved grid is bad', () => {
+    let state: unknown = { grid: [['0A']] };
+    const scenes: Scene[] = [];
+    const click: ((e: PlotClick) => void)[] = [];
+    const plot = { setScene: (s: Scene) => scenes.push(s), onClick: (l: (e: PlotClick) => void) => click.push(l), theme: () => theme, dispose() {} } as unknown as Plot;
+    const host = { settings: {}, setSettings() {}, getState: () => state, setState: (s: unknown) => (state = s) } as unknown as RendererHost;
+    const r = featureRenderer();
+    r.mount({} as HTMLElement, plot, host);
+    r.update(meta, buffers, sel);
+    expect(scenes[0].panels.map((p) => p.title)).toEqual(buildFeatureScene(meta, buffers, sel, theme).panels.map((p) => p.title));
+    click[0]({ panel: 1, x: 0, y: 0, shift: false, button: 0 }); // cell "1A,0A": y 0A -> 0B
+    expect((state as { grid: string[][] }).grid[0][1]).toBe('1A,0B');
+    expect(scenes[1].panels[1].title).toBe('ch13A / ch12B');
   });
 });

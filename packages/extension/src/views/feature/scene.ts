@@ -16,6 +16,15 @@ export const DEFAULT_GRID: string[][] = [
   ['0A,1B', '1A,1B', '0B,1B', 'time,1B'],
 ];
 
+const CELL = /^(time|\d+[A-Z]),(time|\d+[A-Z])$/;
+
+/** `x` if it is a non-empty rectangular grid of well-formed "<x>,<y>" cells (e.g. persisted state), else undefined. */
+export function validGrid(x: unknown): string[][] | undefined {
+  if (!Array.isArray(x) || !Array.isArray(x[0]) || x[0].length === 0) return undefined;
+  const n = x[0].length;
+  return x.every((row) => Array.isArray(row) && row.length === n && row.every((c) => typeof c === 'string' && CELL.test(c))) ? (x as string[][]) : undefined;
+}
+
 export function parseDim(s: string): Dim {
   if (s === 'time') return { kind: 'time' };
   const m = /^(\d+)([A-Z])$/.exec(s);

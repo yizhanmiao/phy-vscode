@@ -2,14 +2,14 @@ import type { SelectionMsg } from '@theia-phy/api';
 import type { Plot } from '../../webview/plot/plot';
 import type { RendererHost, ViewRenderer } from '../../webview/plot/renderer';
 import type { FeatureMeta } from './provider';
-import { buildFeatureScene, cycleDim, DEFAULT_GRID } from './scene';
+import { buildFeatureScene, cycleDim, DEFAULT_GRID, validGrid } from './scene';
 
 /** Click a subplot to cycle its y feature's PC; shift-click cycles its channel. */
 export default (): ViewRenderer => {
   let plot: Plot | undefined;
   let host: RendererHost | undefined;
   let last: { meta: FeatureMeta; buffers: ArrayBuffer[]; selection: SelectionMsg } | undefined;
-  const grid = (): string[][] => host?.getState<{ grid: string[][] }>()?.grid ?? DEFAULT_GRID;
+  const grid = (): string[][] => validGrid(host?.getState<{ grid: unknown }>()?.grid) ?? DEFAULT_GRID;
   const redraw = () => {
     if (plot && last) plot.setScene(buildFeatureScene(last.meta, last.buffers, last.selection, plot.theme(), grid()));
   };
