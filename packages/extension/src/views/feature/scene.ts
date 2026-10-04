@@ -1,4 +1,4 @@
-import type { SelectionMsg } from '@theia-phy/api';
+import type { SelectionMsg } from '@phy-vscode/api';
 import { withAlpha } from '../../webview/plot/geometry';
 import type { Theme } from '../../webview/plot/plot';
 import { colorOf } from '../../webview/plot/renderer';

@@ -1,4 +1,4 @@
-import type { Cell } from '@theia-phy/api';
+import type { Cell } from '@phy-vscode/api';
 
 export type RowTest = (row: Cell[]) => boolean;
 export type FilterResult = { ok: true; test: RowTest | null } | { ok: false; error: string };

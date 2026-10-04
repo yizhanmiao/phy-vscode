@@ -1,4 +1,4 @@
-import type { SelectionMsg } from '@theia-phy/api';
+import type { SelectionMsg } from '@phy-vscode/api';
 import { parseColor } from './geometry';
 import type { Plot, Theme } from './plot';
 import type { Rgba, Scene } from './scene';

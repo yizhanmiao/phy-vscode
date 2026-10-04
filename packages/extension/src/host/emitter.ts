@@ -1,4 +1,4 @@
-import type { Event } from '@theia-phy/api';
+import type { Event } from '@phy-vscode/api';
 
 export class Emitter<T> {
   private readonly listeners = new Set<(e: T) => void>();
@@ -11,7 +11,7 @@ export class Emitter<T> {
       try {
         l(e);
       } catch (err) {
-        console.error('Theia-Phy: event listener threw', err);
+        console.error('phy-vscode: event listener threw', err);
       }
     }
   }

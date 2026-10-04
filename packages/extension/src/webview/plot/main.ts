@@ -1,5 +1,5 @@
 import { createDockview, themeDark, themeLight, type DockviewApi, type GroupPanelPartInitParameters, type IContentRenderer, type SerializedDockview } from 'dockview-core';
-import type { HostToPlot, PlotToHost } from '@theia-phy/api';
+import type { HostToPlot, PlotToHost } from '@phy-vscode/api';
 import { vscodeApi } from '../vscode';
 import { createPlot, type Plot } from './plot';
 import type { RendererHost, ViewRenderer } from './renderer';

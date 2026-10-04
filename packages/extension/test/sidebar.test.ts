@@ -1,4 +1,4 @@
-import type { Cell } from '@theia-phy/api';
+import type { Cell } from '@phy-vscode/api';
 import { describe, expect, it } from 'vitest';
 import { parseFilter } from '../src/webview/sidebar/filter';
 import { clickSelect, isPlainArrow } from '../src/webview/sidebar/selection';

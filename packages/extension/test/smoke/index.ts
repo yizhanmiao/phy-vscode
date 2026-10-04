@@ -15,7 +15,7 @@ async function waitFor<T>(get: () => T | undefined, what: string): Promise<T> {
 
 export async function run(): Promise<void> {
   const fixtures = process.env.PHY_FIXTURES!;
-  const api = await vscode.extensions.getExtension<ExtensionApi>('theia-phy.theia-phy')!.activate();
+  const api = await vscode.extensions.getExtension<ExtensionApi>('phy-vscode.phy-vscode')!.activate();
   const views = ['waveform', 'feature', 'correlogram', 'amplitude', 'cluster_statistics'];
   /** Wait until every view rendered once after log index `from`; returns the latest entry per view. */
   const renderedAfter = (from: number) =>

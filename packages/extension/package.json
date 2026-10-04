@@ -1,10 +1,11 @@
 {
-  "name": "theia-phy",
-  "displayName": "Theia-Phy",
+  "name": "phy-vscode",
+  "displayName": "phy-vscode",
   "description": "Browse phy/Kilosort spike-sorting datasets in VS Code.",
-  "publisher": "theia-phy",
+  "publisher": "phy-vscode",
   "version": "0.0.1",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "engines": {
     "vscode": "^1.95.0"
@@ -55,7 +56,7 @@
     },
     "customEditors": [
       {
-        "viewType": "theiaPhy.dataset",
+        "viewType": "phyVscode.dataset",
         "displayName": "Phy Dataset",
         "selector": [
           {
@@ -68,17 +69,17 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "theiaPhy",
+          "id": "phyVscode",
           "title": "Phy",
           "icon": "media/phy.svg"
         }
       ]
     },
     "views": {
-      "theiaPhy": [
+      "phyVscode": [
         {
           "type": "webview",
-          "id": "theiaPhy.clusters",
+          "id": "phyVscode.clusters",
           "name": "Clusters"
         }
       ]
@@ -107,7 +108,7 @@
     "package": "node esbuild.mjs && npx -y @vscode/vsce package --no-dependencies --allow-missing-repository --skip-license"
   },
   "dependencies": {
-    "@theia-phy/api": "0.1.0",
+    "@phy-vscode/api": "0.1.0",
     "dockview-core": "^8.4.0"
   },
   "devDependencies": {

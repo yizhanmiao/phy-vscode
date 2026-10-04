@@ -1,4 +1,4 @@
-import type { CancellationToken, ViewResult } from '@theia-phy/api';
+import type { CancellationToken, ViewResult } from '@phy-vscode/api';
 import type { Compute } from '../compute';
 import type { Session } from '../host/session';
 

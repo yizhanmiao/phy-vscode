@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import type { Cell, DatasetReader } from '@theia-phy/api';
+import type { Cell, DatasetReader } from '@phy-vscode/api';
 import { invert } from '../../compute/linalg';
 import { cOrderCopy } from './fortranCache';
 import { convert, NpyFile, readNpy, type NpyArray } from './npy';
@@ -84,7 +84,7 @@ async function openDatasetInner(paramsPath: string, opts: OpenOptions, opened: {
   const abs = resolve(paramsPath);
   const dir = dirname(abs);
   const params = await readParams(abs);
-  const cacheDir = opts.cacheDir ?? join(tmpdir(), 'theia-phy-cache');
+  const cacheDir = opts.cacheDir ?? join(tmpdir(), 'phy-vscode-cache');
   const file = (name: string) => join(dir, name);
   const has = (name: string) => existsSync(file(name));
   const need = async (name: string, shared = false) => {

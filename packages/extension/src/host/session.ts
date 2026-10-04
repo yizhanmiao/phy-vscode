@@ -1,4 +1,4 @@
-import type { Cell, ClusterTable, ClusterUpdate, PhySession } from '@theia-phy/api';
+import type { Cell, ClusterTable, ClusterUpdate, PhySession } from '@phy-vscode/api';
 import { bsearch, buildClusterIndex, spikesOf, type ClusterIndex } from '../compute/spikes';
 import { bestChannels, clusterMeanTemplate } from '../compute/templates';
 import type { Dataset } from './dataset/dataset';

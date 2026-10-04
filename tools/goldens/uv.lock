@@ -703,7 +703,7 @@ wheels = [
 ]
 
 [[package]]
-name = "theia-phy-goldens"
+name = "phy-vscode-goldens"
 version = "0"
 source = { virtual = "." }
 dependencies = [

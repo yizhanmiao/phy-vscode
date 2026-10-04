@@ -1,4 +1,4 @@
-import type { Cell } from '@theia-phy/api';
+import type { Cell } from '@phy-vscode/api';
 
 /** Stable sort by one column; numbers numerically, strings lexically, empty cells last either way. */
 export function sortRows(rows: Cell[][], col: number, descending: boolean): Cell[][] {

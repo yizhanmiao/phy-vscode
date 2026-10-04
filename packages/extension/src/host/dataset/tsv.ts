@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Cell } from '@theia-phy/api';
+import type { Cell } from '@phy-vscode/api';
 
 const isMissing = (v: string) => v === '' || /^nan$/i.test(v);
 

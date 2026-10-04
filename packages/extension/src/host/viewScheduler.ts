@@ -1,4 +1,4 @@
-import type { CancellationToken, HostToPlot, SelectionMsg, ViewResult } from '@theia-phy/api';
+import type { CancellationToken, HostToPlot, SelectionMsg, ViewResult } from '@phy-vscode/api';
 import { Cancelled } from '../views/types';
 
 export type RunView = (viewId: string, settings: Readonly<Record<string, unknown>>, token: CancellationToken) => Promise<ViewResult>;

@@ -1,4 +1,4 @@
-import type { SelectionMsg } from '@theia-phy/api';
+import type { SelectionMsg } from '@phy-vscode/api';
 import type { Plot } from '../../webview/plot/plot';
 import { addToolbar, type RendererHost, type ViewRenderer } from '../../webview/plot/renderer';
 import type { WaveformMeta } from './provider';

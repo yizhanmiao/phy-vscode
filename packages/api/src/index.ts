@@ -1,4 +1,4 @@
-// @theia-phy/api — public types shared by Theia-Phy and its mods. Types only; follows semver.
+// @phy-vscode/api — public types shared by phy-vscode and its mods. Types only; follows semver.
 
 export interface Disposable {
   dispose(): void;

@@ -1,4 +1,4 @@
-"""Dev-only golden values for Theia-Phy unit tests.
+"""Dev-only golden values for phy-vscode unit tests.
 
 Reads the TypeScript-generated fixture and writes JSON goldens that vitest compares
 against. Python is never needed to run the tests; rerun only when the fixture or an

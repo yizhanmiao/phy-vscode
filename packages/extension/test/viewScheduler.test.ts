@@ -1,4 +1,4 @@
-import type { CancellationToken, HostToPlot, ViewResult } from '@theia-phy/api';
+import type { CancellationToken, HostToPlot, ViewResult } from '@phy-vscode/api';
 import { describe, expect, it } from 'vitest';
 import { toArrayBuffer, ViewScheduler } from '../src/host/viewScheduler';
 import { Cancelled } from '../src/views/types';

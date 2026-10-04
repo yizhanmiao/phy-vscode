@@ -1,4 +1,4 @@
-import type { HistogramDefinition } from '@theia-phy/api';
+import type { HistogramDefinition } from '@phy-vscode/api';
 import { firingRateHistogram, isiHistogram, ISI } from '../../compute/histograms';
 import { checkCancel, type BuiltinView } from '../types';
 

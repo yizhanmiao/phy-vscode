@@ -1,4 +1,4 @@
-import type { Cell, HostToSidebar, SelectionMsg, SidebarToHost, TableState } from '@theia-phy/api';
+import type { Cell, HostToSidebar, SelectionMsg, SidebarToHost, TableState } from '@phy-vscode/api';
 import { stepSelection } from '../../shared/order';
 import { vscodeApi } from '../vscode';
 import { parseFilter } from './filter';

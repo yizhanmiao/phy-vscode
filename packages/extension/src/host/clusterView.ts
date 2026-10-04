@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { HostToSidebar, SidebarToHost } from '@theia-phy/api';
+import type { HostToSidebar, SidebarToHost } from '@phy-vscode/api';
 import { stepSelection } from '../shared/order';
 import { datasetInfo, nonce, webviewHtml } from './html';
 import { loadPersisted, savePersisted, selectionMsg } from './plotPanel';

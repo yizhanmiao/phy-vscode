@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { HostToPlot, PlotToHost, SelectionMsg, TableState } from '@theia-phy/api';
+import type { HostToPlot, PlotToHost, SelectionMsg, TableState } from '@phy-vscode/api';
 import type { Compute } from '../compute';
 import { builtinViews } from '../views';
 import { nonce, webviewHtml } from './html';
@@ -13,7 +13,7 @@ export interface Persisted {
   states: Record<string, unknown>;
   table?: TableState;
 }
-export const persistKey = (paramsPath: string): string => `theiaPhy:${paramsPath}`;
+export const persistKey = (paramsPath: string): string => `phyVscode:${paramsPath}`;
 export const loadPersisted = (state: vscode.Memento, paramsPath: string): Persisted => ({
   settings: {},
   states: {},

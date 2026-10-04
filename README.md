@@ -1,10 +1,30 @@
-# Theia-Phy
+# phy-vscode
 
 A VS Code extension for browsing [phy](https://phy.readthedocs.io/)/Kilosort spike-sorting datasets, written in pure TypeScript with no Python at runtime.
 
-**Status: Plan 2 of 3.**
-- The extension opens a dataset folder and shows the Clusters sidebar view (a sortable, filterable table of the active dataset) and the five tiled plot views (Waveform, Feature, Correlogram, Amplitude, Cluster statistics). An error page still names a missing or bad file.
-- Mods and plugins come in Plan 3.
+> [!WARNING]
+> **This is a proof of concept.** It's an experiment in whether phy's views can run natively inside VS Code. It isn't a replacement for phy.
+> - **Read-only.** You can browse and select clusters. Curation (merge, split, relabel, undo) isn't implemented, and nothing is written back to the dataset.
+> - **Incomplete.** phy's Similarity, Trace, Probe and Raster views are missing.
+> - **Unstable.** Expect bugs and breaking changes. The mod/plugin API in `packages/api` isn't stable yet.
+> - **Not published** to the VS Code Marketplace. Build from source (see below).
+> - Tested on one Kilosort 4 dataset and synthetic fixtures. Check results against phy before you rely on them.
+
+![phy-vscode showing the Clusters table and the five plot views on a Kilosort 4 dataset](docs/screenshots/phy-vscode-ui.png)
+
+## Features
+
+**Clusters table:** a sortable, filterable table with multi-select. Each selected cluster gets a colour that the plot views reuse.
+
+<img src="docs/screenshots/clusters.png" alt="Clusters table with three selected clusters" width="480">
+
+**Waveform and Feature views:** waveforms are drawn at their probe positions (raw data, or templates as a fallback). The feature view shows a grid of PC-feature scatter plots plus feature-vs-time panels.
+
+![Waveform and Feature views](docs/screenshots/waveform-feature.png)
+
+**Amplitude, Correlogram and Cluster statistics views:** amplitude vs time with a marginal histogram; auto- and cross-correlograms with adjustable bin and window; ISI and firing-rate histograms.
+
+![Amplitude, Correlogram and Cluster statistics views](docs/screenshots/amplitude-correlogram-stats.png)
 
 Design: [docs/superpowers/specs/2026-10-03-phy-vscode-extension-design.md](docs/superpowers/specs/2026-10-03-phy-vscode-extension-design.md)
 
@@ -18,14 +38,14 @@ Design: [docs/superpowers/specs/2026-10-03-phy-vscode-extension-design.md](docs/
 ### Option A: package and install a `.vsix` (recommended)
 
 ```bash
-git clone <this repo> theia-phy && cd theia-phy
+git clone <this repo> phy-vscode && cd phy-vscode
 npm install
-npm run package          # writes packages/extension/theia-phy-0.0.1.vsix
+npm run package          # writes packages/extension/phy-vscode-0.0.1.vsix
 ```
 
 Then install that file in VS Code by either:
-- **Extensions view:** open `⋯` → **Install from VSIX…** and pick `packages/extension/theia-phy-0.0.1.vsix`.
-- **Command line:** `code --install-extension packages/extension/theia-phy-0.0.1.vsix`
+- **Extensions view:** open `⋯` → **Install from VSIX…** and pick `packages/extension/phy-vscode-0.0.1.vsix`.
+- **Command line:** `code --install-extension packages/extension/phy-vscode-0.0.1.vsix`
 
 **Remote-SSH:** the extension runs on the machine that has the data. Connect to the remote first, then install the `.vsix` from the Extensions view; VS Code installs it on the remote side.
 
@@ -37,7 +57,7 @@ To update, pull, run `npm run package` again and reinstall the new `.vsix`.
 npm install
 ```
 
-Open the repo folder in VS Code and press **F5** ("Run Theia-Phy"). It builds first, then starts an Extension Development Host window with the extension loaded.
+Open the repo folder in VS Code and press **F5** ("Run phy-vscode"). It builds first, then starts an Extension Development Host window with the extension loaded.
 
 ## Usage
 
@@ -79,3 +99,7 @@ Tests compare against checked-in JSON goldens produced by phylib/scipy. You only
 npm run fixtures -w packages/extension
 uv run --project tools/goldens python tools/goldens/make_goldens.py
 ```
+
+## License
+
+[MIT](LICENSE)
