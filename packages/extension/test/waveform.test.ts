@@ -83,11 +83,24 @@ describe('waveform provider', () => {
     session.select([50]);
     const r = await waveformView.provider(viewContext(session), live);
     expect((r.meta as WaveformMeta).clusters[0].spikeIds).toHaveLength(1);
-    expect(r.buffers).toHaveLength(2);
+    expect(r.buffers).toHaveLength(3);
   });
 
   it('stops when cancelled', async () => {
     const { session } = await openSession('base', [7]);
     await expect(waveformView.provider(viewContext(session), { isCancellationRequested: true })).rejects.toBeInstanceOf(Cancelled);
+  });
+
+  it('adds the cluster template on its channels, scaled by the mean amplitude', async () => {
+    const { session, ds } = await openSession('noraw', [7]);
+    const r = await waveformView.provider(viewContext(session), live);
+    const meta = r.meta as WaveformMeta;
+    expect(meta.templateSamples).toBe(NS_TEMPLATE);
+    const c = meta.clusters[0];
+    const tmpl = new Float32Array(r.buffers[2]);
+    expect(tmpl).toHaveLength(NS_TEMPLATE * c.channels.length);
+    const mean = golden('templates.json').base['7'].mean as number[][];
+    const amp = c.spikeIds.reduce((s, id) => s + ds.amplitudes![id], 0) / c.spikeIds.length;
+    expect(tmpl[10 * c.channels.length]).toBeCloseTo(mean[10][c.channels[0]] * amp, 2);
   });
 });

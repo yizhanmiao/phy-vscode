@@ -11,6 +11,7 @@ export interface WaveformMeta {
   source: WaveformSource;
   notice?: string;
   nSamples: number;
+  templateSamples: number;
   channelPositions: number[];
   clusters: { id: number; channels: number[]; spikeIds: number[] }[];
 }
@@ -31,6 +32,7 @@ export const waveformView: BuiltinView = {
       source,
       notice: !sub && !raw.ok ? `${raw.reason} — showing templates` : undefined,
       nSamples,
+      templateSamples: ds.templates.nSamples,
       channelPositions: Array.from(ds.channelPositions),
       clusters: [],
     };
@@ -47,7 +49,7 @@ export const waveformView: BuiltinView = {
           : templateWaveforms(ctx, ids, channels);
       checkCancel(token);
       meta.clusters.push({ id, channels: Array.from(channels), spikeIds: Array.from(ids) });
-      buffers.push(wf.buffer, meanWaveform(wf, ids.length, nSamples * channels.length).buffer);
+      buffers.push(wf.buffer, meanWaveform(wf, ids.length, nSamples * channels.length).buffer, templateOnChannels(ctx, id, ids, channels).buffer);
     }
     return { meta, buffers };
   },
@@ -57,6 +59,25 @@ function meanWaveform(wf: Float32Array, n: number, size: number): Float32Array {
   const m = new Float32Array(size);
   for (let i = 0; i < n; i++) for (let k = 0; k < size; k++) m[k] += wf[i * size + k] / n;
   return m;
+}
+
+/** Mean unwhitened template of the cluster on `channels`, scaled by the mean amplitude of the sampled spikes. */
+function templateOnChannels(ctx: HostViewContext, id: number, ids: Int32Array, channels: Int32Array): Float32Array {
+  const { session } = ctx;
+  const ds = session.dataset;
+  const m = session.meanTemplate(id);
+  if (!m || !ds.templates) return new Float32Array(0);
+  let amp = 1;
+  if (ds.amplitudes && ids.length) {
+    amp = 0;
+    for (const s of ids) amp += ds.amplitudes[s];
+    amp /= ids.length;
+  }
+  const ns = ds.templates.nSamples;
+  const nc = channels.length;
+  const out = new Float32Array(ns * nc);
+  for (let s = 0; s < ns; s++) for (let j = 0; j < nc; j++) out[s * nc + j] = m[s * ds.nChannels + channels[j]] * amp;
+  return out;
 }
 
 /** Raw windows around each spike on `channels`, high-passed (unless hp_filtered) and median-subtracted. */
