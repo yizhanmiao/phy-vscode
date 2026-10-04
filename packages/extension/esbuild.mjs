@@ -16,5 +16,6 @@ await Promise.all([
   build({ ...common, entryPoints: ['src/extension.ts'], outfile: 'dist/extension.cjs' }),
   build({ ...common, entryPoints: ['src/host/worker.ts'], outfile: 'dist/worker.cjs' }),
   build({ ...web, entryPoints: ['src/webview/plot/main.ts'], outfile: 'dist/webview/plot.js' }),
+  build({ ...web, entryPoints: ['src/webview/sidebar/main.ts'], outfile: 'dist/webview/sidebar.js' }),
   build({ ...common, entryPoints: ['test/smoke/index.ts'], outfile: 'dist-test/smoke.cjs' }),
 ]);

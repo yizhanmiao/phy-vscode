@@ -28,6 +28,12 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand('phy.openDataset', vscode.Uri.file(join(fixtures, 'base')));
   const session = await waitFor(() => api.activeSession(), 'base session');
   assert.equal(session.clusters.rows.length, 5);
+  await vscode.commands.executeCommand('phy.selectNext');
+  assert.deepEqual([...session.selection], [2]);
+  await vscode.commands.executeCommand('phy.selectNext');
+  assert.deepEqual([...session.selection], [7]);
+  await vscode.commands.executeCommand('phy.selectPrevious');
+  assert.deepEqual([...session.selection], [2]);
   await renderedAfter(0); // empty selection renders a message in every view
   let mark = api.renderLog().length;
   session.select([7, 2]);

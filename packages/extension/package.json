@@ -27,12 +27,28 @@
       {
         "command": "phy.view.toggle",
         "title": "Phy: Toggle View…"
+      },
+      {
+        "command": "phy.selectNext",
+        "title": "Phy: Select Next Cluster"
+      },
+      {
+        "command": "phy.selectPrevious",
+        "title": "Phy: Select Previous Cluster"
       }
     ],
     "menus": {
       "commandPalette": [
         {
           "command": "phy.view.toggle",
+          "when": "phyDatasetActive"
+        },
+        {
+          "command": "phy.selectNext",
+          "when": "phyDatasetActive"
+        },
+        {
+          "command": "phy.selectPrevious",
           "when": "phyDatasetActive"
         }
       ]
@@ -47,6 +63,36 @@
           }
         ],
         "priority": "option"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "theiaPhy",
+          "title": "Phy",
+          "icon": "media/phy.svg"
+        }
+      ]
+    },
+    "views": {
+      "theiaPhy": [
+        {
+          "type": "webview",
+          "id": "theiaPhy.clusters",
+          "name": "Clusters"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "phy.selectNext",
+        "key": "alt+down",
+        "when": "phyDatasetActive"
+      },
+      {
+        "command": "phy.selectPrevious",
+        "key": "alt+up",
+        "when": "phyDatasetActive"
       }
     ]
   },

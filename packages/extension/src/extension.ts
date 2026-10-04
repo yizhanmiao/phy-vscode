@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { ViewResult } from '@theia-phy/api';
+import { ClusterViewProvider } from './host/clusterView';
 import { DatasetEditorProvider } from './host/editor';
 import type { RenderEntry } from './host/plotPanel';
 import type { Session } from './host/session';
@@ -16,6 +17,14 @@ export interface ExtensionApi {
 export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const pool = new WorkerPool(join(context.extensionPath, 'dist', 'worker.cjs'));
   const editor = new DatasetEditorProvider({ storage: context.globalStorageUri, extensionUri: context.extensionUri, state: context.workspaceState, compute: pool });
+  const clusters = new ClusterViewProvider({ extensionUri: context.extensionUri, state: context.workspaceState });
+  context.subscriptions.push(
+    clusters,
+    vscode.window.registerWebviewViewProvider('theiaPhy.clusters', clusters),
+    editor.onDidChangeActiveSession((s) => clusters.setSession(s)),
+    vscode.commands.registerCommand('phy.selectNext', () => clusters.step(1)),
+    vscode.commands.registerCommand('phy.selectPrevious', () => clusters.step(-1)),
+  );
   context.subscriptions.push(
     { dispose: () => void pool.dispose() },
     vscode.window.registerCustomEditorProvider('theiaPhy.dataset', editor, {
