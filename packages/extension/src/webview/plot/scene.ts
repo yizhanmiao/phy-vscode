@@ -9,7 +9,7 @@ export interface ScatterLayer {
   color: Rgba;
   size: number; // CSS px
 }
-/** Polylines; consecutive polylines are separated by a NaN vertex. `width` is in CSS px (default 1). */
+/** Polylines; consecutive polylines are separated by a NaN vertex. `width` is in CSS px (default 1); widths above 1 are approximated by repeated passes at pixel offsets, are capped at 8, and look uniform only when the colour is opaque, so use them on opaque lines. */
 export interface LinesLayer {
   kind: 'lines';
   x: Float32Array;

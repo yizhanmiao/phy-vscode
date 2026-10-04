@@ -30,7 +30,9 @@ describe('waveform scene', () => {
     expect(p.y).toEqual({ min: -18, max: 38 });
     const [spikes, m] = p.layers as LinesLayer[];
     expect(spikes.color[3]).toBeCloseTo(0.15);
+    expect(spikes.width).toBeUndefined();
     expect(m.color).toEqual([1, 0, 0, 1]);
+    expect(m.width).toEqual(2.5);
     // yScale = (18/2)/max|mean| = 4.5
     expect(arr(m.x)).toEqual([-18, 0, 18, null, -18, 0, 18, null]);
     expect(arr(m.y)).toEqual([0, -9, 0, null, 20, 24.5, 20, null]);
@@ -40,6 +42,7 @@ describe('waveform scene', () => {
     const s = buildWaveformScene(meta, buffers, sel, theme, { meanOnly: true, showTemplate: true });
     const layers = s.panels[0].layers as LinesLayer[];
     expect(layers).toHaveLength(2);
+    expect(layers[1].width).toBeUndefined();
     expect(arr(layers[1].x)).toEqual([-18, 18, null, -18, 18, null]);
   });
 

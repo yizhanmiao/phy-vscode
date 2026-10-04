@@ -11,6 +11,7 @@ export interface WaveformOptions {
 }
 
 const BUFFERS_PER_CLUSTER = 3; // waveforms, mean, template
+const MEAN_WIDTH = 2.5; // mean is bold; spikes stay thin (width 1)
 
 /** Box per channel: 90 % of the smallest spacing between distinct x (and y) positions; 40 µm when single. */
 export function boxSize(positions: number[], channels: number[]): { w: number; h: number } {
@@ -65,7 +66,7 @@ export function buildWaveformScene(meta: WaveformMeta, buffers: ArrayBuffer[], s
     if (!opts.meanOnly && cluster.spikeIds.length) {
       layers.push({ kind: 'lines', ...traces(new Float32Array(buffers[k * BUFFERS_PER_CLUSTER]), cluster.spikeIds.length, meta.nSamples), color: withAlpha(color, 0.15) });
     }
-    layers.push({ kind: 'lines', ...traces(means[k], 1, meta.nSamples), color });
+    layers.push({ kind: 'lines', ...traces(means[k], 1, meta.nSamples), color, width: MEAN_WIDTH });
     const tmpl = new Float32Array(buffers[k * BUFFERS_PER_CLUSTER + 2] ?? new ArrayBuffer(0));
     if (opts.showTemplate && tmpl.length && meta.templateSamples) {
       layers.push({ kind: 'lines', ...traces(tmpl, 1, meta.templateSamples), color: withAlpha(theme.fg, 0.7) });
