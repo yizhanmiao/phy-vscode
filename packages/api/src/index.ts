@@ -73,3 +73,5 @@ export interface HistogramDefinition {
   range?(ctx: ComputeContext): [number, number];
   compute(spikeIds: Int32Array, ctx: ComputeContext): Float64Array;
 }
+
+export type * from './protocol';

@@ -49,7 +49,8 @@
     "package": "node esbuild.mjs && npx -y @vscode/vsce package --no-dependencies --allow-missing-repository --skip-license"
   },
   "dependencies": {
-    "@theia-phy/api": "0.1.0"
+    "@theia-phy/api": "0.1.0",
+    "dockview-core": "^8.4.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

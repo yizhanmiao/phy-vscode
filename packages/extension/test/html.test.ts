@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { errorHtml, summaryHtml } from '../src/host/html';
+import { errorHtml, summaryHtml, webviewHtml } from '../src/host/html';
 import { openSession } from './helpers';
 
 describe('pages', () => {
@@ -15,5 +15,16 @@ describe('pages', () => {
     expect(h).toContain('raw data not found');
     expect(h).toContain(`<td>${ds.nSpikes}</td>`);
     expect(h).toContain('<td>5</td>');
+  });
+});
+
+describe('webviewHtml', () => {
+  it('allows scripts only from the nonce and never eval', () => {
+    const h = webviewHtml({ cspSource: 'vscode-resource:', scriptUri: 'vscode-resource:/dist/webview/plot.js', nonce: 'abc123', title: 'Phy <x>' });
+    expect(h).toContain("script-src 'nonce-abc123'");
+    expect(h).toContain('<script nonce="abc123" src="vscode-resource:/dist/webview/plot.js">');
+    expect(h).not.toContain('unsafe-eval');
+    expect(h).toContain('<title>Phy &#60;x&#62;</title>');
+    expect(h).toContain('<div id="root"></div>');
   });
 });
