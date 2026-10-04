@@ -2,7 +2,7 @@ import type { Cell, HostToSidebar, SelectionMsg, SidebarToHost, TableState } fro
 import { stepSelection } from '../../shared/order';
 import { vscodeApi } from '../vscode';
 import { parseFilter } from './filter';
-import { clickSelect } from './selection';
+import { clickSelect, isPlainArrow } from './selection';
 import { formatCell, groupTint, sortRows, visibleRange } from './table';
 
 const ROW_H = 22;
@@ -128,9 +128,10 @@ function scrollTo(id: number): void {
 scroller.addEventListener('scroll', renderRows);
 new ResizeObserver(renderRows).observe(scroller);
 scroller.addEventListener('keydown', (ev) => {
-  if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;
+  const delta = isPlainArrow(ev);
+  if (!delta) return;
   ev.preventDefault();
-  const next = stepSelection(order(), selection.ids, ev.key === 'ArrowDown' ? 1 : -1, ev.shiftKey);
+  const next = stepSelection(order(), selection.ids, delta, ev.shiftKey);
   if (!next) return;
   anchor = ev.shiftKey ? anchor : next[next.length - 1];
   post({ type: 'select', ids: next });

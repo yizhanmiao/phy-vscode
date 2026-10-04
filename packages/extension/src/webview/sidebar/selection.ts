@@ -17,3 +17,12 @@ export function clickSelect(
   if (mods.ctrl) return { selected: selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id], anchor: id };
   return { selected: [id], anchor: id };
 }
+
+/**
+ * Step for an ↑/↓ keydown, or undefined to leave the event alone. Shift is allowed (it extends the selection); Alt/Ctrl/Meta
+ * arrows belong to the workbench (the extension binds `alt+up`/`alt+down`), so stepping here too would double-step.
+ */
+export function isPlainArrow(ev: { key: string; altKey: boolean; ctrlKey: boolean; metaKey: boolean }): 1 | -1 | undefined {
+  if (ev.altKey || ev.ctrlKey || ev.metaKey) return undefined;
+  return ev.key === 'ArrowDown' ? 1 : ev.key === 'ArrowUp' ? -1 : undefined;
+}
