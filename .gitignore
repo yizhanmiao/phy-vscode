@@ -8,3 +8,4 @@ tools/goldens/.venv/
 /dataset/
 .omc/
 .DS_Store
+__pycache__/
