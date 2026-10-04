@@ -1,7 +1,16 @@
 import { build } from 'esbuild';
 
 const common = { bundle: true, platform: 'node', format: 'cjs', target: 'node20', sourcemap: true, external: ['vscode'], logLevel: 'info' };
-const web = { bundle: true, platform: 'browser', format: 'iife', target: 'es2022', sourcemap: true, logLevel: 'info' };
+// dockview's default ESM entry ships no CSS; its UMD build injects the stylesheet at load (CSP allows inline styles).
+const web = {
+  bundle: true,
+  platform: 'browser',
+  format: 'iife',
+  target: 'es2022',
+  sourcemap: true,
+  logLevel: 'info',
+  alias: { 'dockview-core': 'dockview-core/dist/dockview-core.js' },
+};
 
 await Promise.all([
   build({ ...common, entryPoints: ['src/extension.ts'], outfile: 'dist/extension.cjs' }),

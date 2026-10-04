@@ -49,6 +49,8 @@ export class ViewScheduler {
   }
 
   setVisible(viewIds: string[]): void {
+    // A view that left the visible set may have been removed from the webview: recompute it on return unless its run is still in flight.
+    for (const id of this.visible) if (!viewIds.includes(id) && !this.current.has(id)) this.computedFor.delete(id);
     this.visible = new Set(viewIds);
     for (const id of viewIds) if (this.computedFor.get(id) !== this.version) this.refresh(id);
   }
@@ -75,12 +77,21 @@ export class ViewScheduler {
     this.computedFor.set(viewId, this.version);
     const selection = this.selection();
     const isCurrent = () => !this.disposed && this.current.get(viewId)?.seq === seq;
+    /** The run finished: it is no longer in flight, and a view hidden meanwhile may have missed the result, so recompute on show. */
+    const settle = () => {
+      this.current.delete(viewId);
+      if (!this.visible.has(viewId)) this.computedFor.delete(viewId);
+    };
     this.run(viewId, this.settingsOf(viewId), source.token).then(
       (r) => {
-        if (isCurrent()) this.post({ type: 'viewData', viewId, seq, meta: r.meta, buffers: r.buffers.map(toArrayBuffer), selection });
+        if (!isCurrent()) return;
+        settle();
+        this.post({ type: 'viewData', viewId, seq, meta: r.meta, buffers: r.buffers.map(toArrayBuffer), selection });
       },
       (e: unknown) => {
-        if (isCurrent() && !(e instanceof Cancelled)) this.post({ type: 'viewError', viewId, seq, message: e instanceof Error ? e.message : String(e) });
+        if (!isCurrent()) return;
+        settle();
+        if (!(e instanceof Cancelled)) this.post({ type: 'viewError', viewId, seq, message: e instanceof Error ? e.message : String(e) });
       },
     );
   }

@@ -56,6 +56,16 @@ export class DatasetEditorProvider implements vscode.CustomReadonlyEditorProvide
     const session = doc.session;
     if (!session) {
       panel.webview.html = errorHtml(doc.error ?? 'unknown error');
+      // An error page is not a dataset: while it is active nothing else may address the previous dataset.
+      const clear = () => {
+        this.activePanel = undefined;
+        this.setActive(undefined);
+        void vscode.commands.executeCommand('setContext', 'phyDatasetActive', false);
+      };
+      clear();
+      panel.onDidChangeViewState(() => {
+        if (panel.active) clear();
+      });
       return;
     }
     const plot = new PlotPanel(panel, session, this.ctx);

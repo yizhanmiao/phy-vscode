@@ -131,4 +131,28 @@ describe('ViewScheduler', () => {
     expect(data).toHaveLength(1);
     expect(data[0]).toMatchObject({ viewId: 'a', meta: { tag: 1 } });
   });
+
+  it('recomputes a re-shown view whose run already completed', async () => {
+    const { s, calls, posted, flush } = harness();
+    s.setVisible(['a']);
+    calls[0].resolve(result(1));
+    await flush();
+    s.setVisible([]);
+    s.setVisible(['a']);
+    expect(calls).toHaveLength(2);
+    calls[1].resolve(result(2));
+    await flush();
+    const data = posted.filter((m) => m.type === 'viewData');
+    expect(data.map((m) => (m as { meta: { tag: number } }).meta.tag)).toEqual([1, 2]);
+  });
+
+  it('recomputes a re-shown view whose run completed while it was hidden', async () => {
+    const { s, calls, flush } = harness();
+    s.setVisible(['a']);
+    s.setVisible([]);
+    calls[0].resolve(result(1));
+    await flush();
+    s.setVisible(['a']);
+    expect(calls).toHaveLength(2);
+  });
 });
