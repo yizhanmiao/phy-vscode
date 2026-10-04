@@ -1,5 +1,5 @@
 import { open, type FileHandle } from 'node:fs/promises';
-import { readFully } from './files';
+import { readFully, readRanges } from './files';
 
 const CTORS = {
   i1: Int8Array, i2: Int16Array, i4: Int32Array, i8: BigInt64Array,
@@ -150,4 +150,46 @@ export function npyHeaderBytes(dtype: NpyDtype, shape: number[], fortran: boolea
   else buf.writeUInt32LE(text.length, 8);
   buf.write(text, pre, 'latin1');
   return buf;
+}
+
+/** A C-order .npy file kept open for positioned reads of rows (first axis). */
+export class NpyFile {
+  private constructor(readonly path: string, readonly header: NpyHeader, private readonly fh: FileHandle) {}
+
+  static async open(path: string): Promise<NpyFile> {
+    const fh = await open(path, 'r');
+    try {
+      return new NpyFile(path, await readNpyHeader(fh, path), fh);
+    } catch (e) {
+      await fh.close();
+      throw e;
+    }
+  }
+
+  get rowLength(): number {
+    return this.header.shape.slice(1).reduce((a, b) => a * b, 1);
+  }
+
+  async readRows(rows: ArrayLike<number>): Promise<NumArray> {
+    if (this.header.fortranOrder) throw new Error(`${this.path}: row reads need a C-order file`);
+    const rowBytes = this.rowLength * itemSize(this.header.dtype);
+    const n = this.header.shape[0];
+    const ranges = Array.from(rows, (r) => {
+      if (!(r >= 0 && r < n)) throw new Error(`${this.path}: row ${r} out of range (0..${n - 1})`);
+      return { offset: this.header.dataOffset + r * rowBytes, length: rowBytes };
+    });
+    let bufs: Uint8Array[];
+    try {
+      bufs = await readRanges(this.fh, ranges);
+    } catch (e) {
+      throw new Error(`${this.path}: ${(e as Error).message}`);
+    }
+    const out = new Uint8Array(ranges.length * rowBytes);
+    bufs.forEach((b, i) => out.set(b, i * rowBytes));
+    return new (ctorOf(this.header.dtype))(out.buffer);
+  }
+
+  close(): Promise<void> {
+    return this.fh.close();
+  }
 }
