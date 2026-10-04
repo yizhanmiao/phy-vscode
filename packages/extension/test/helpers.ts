@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, onTestFinished } from 'vitest';
+import { inlineCompute } from '../src/compute';
 import { openDataset } from '../src/host/dataset/dataset';
 import { Session } from '../src/host/session';
+import type { HostViewContext } from '../src/views/types';
 import { fixtureParams, VARIANTS, type Variant } from './fixtures/makeFixture';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,3 +38,9 @@ export async function openSession(where: Variant | string, select: number[] = []
   session.select(select);
   return { session, ds: session.dataset };
 }
+
+export const viewContext = (session: Session, settings: Record<string, unknown> = {}): HostViewContext => ({
+  session,
+  compute: inlineCompute,
+  settings,
+});
