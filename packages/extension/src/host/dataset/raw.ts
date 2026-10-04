@@ -74,7 +74,12 @@ export class RawData {
     }
     for (let f = 0; f < this.files.length; f++) {
       const mine = jobs.filter((j) => j.file === f);
-      const bufs = await readRanges(this.files[f].fh, mine.map((j) => j.range));
+      let bufs: Uint8Array[];
+      try {
+        bufs = await readRanges(this.files[f].fh, mine.map((j) => j.range));
+      } catch (e) {
+        throw new Error(`${this.files[f].path}: ${(e as Error).message}`);
+      }
       mine.forEach((j, i) => {
         const b = bufs[i];
         const src = new (ctorOf(this.dtype))(b.buffer, b.byteOffset, b.length / isz) as unknown as ArrayLike<number>;

@@ -25,7 +25,7 @@ describe('cluster metadata', () => {
     writeFileSync(join(dir, 'cluster_group.tsv'), 'cluster_id\tgroup\n3\tnoise\n');
     writeFileSync(join(dir, 'cluster_Amplitude.csv'), 'cluster_id,Amplitude\n3,9.8\n');
     writeFileSync(join(dir, 'cluster_info.tsv'), 'cluster_id\tshould_not_appear\n3\t1\n');
-    const m = await readClusterMetadata(dir);
+    const { metadata: m } = await readClusterMetadata(dir);
     expect([...m.keys()]).toEqual(['Amplitude', 'group']);
     expect(m.get('Amplitude')!.get(3)).toBe(9.8);
   });

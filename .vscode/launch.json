@@ -5,6 +5,7 @@
       "name": "Run Theia-Phy",
       "type": "extensionHost",
       "request": "launch",
+      "preLaunchTask": "theia-phy: build",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}/packages/extension"],
       "outFiles": ["${workspaceFolder}/packages/extension/dist/**/*.cjs"]
     }

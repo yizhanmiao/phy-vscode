@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { parsePythonLiterals, toParams } from '../src/host/dataset/params';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { parsePythonLiterals, readParams, toParams } from '../src/host/dataset/params';
 
 const parse = (src: string) => toParams(parsePythonLiterals(src));
 
@@ -45,5 +48,11 @@ x = (1, 2.5e3, -3, True, None)
   it('requires a numeric sample_rate and a known dtype', () => {
     expect(() => parse(`dat_path = 'x.bin'`)).toThrow(/'sample_rate' must be a number/);
     expect(() => parse(`sample_rate = 1.\ndtype = 'complex64'`)).toThrow(/unsupported dtype "complex64"/);
+  });
+
+  it('ignores a leading UTF-8 BOM', async () => {
+    const d = mkdtempSync(join(tmpdir(), 'bom-'));
+    writeFileSync(join(d, 'params.py'), '\uFEFFsample_rate = 30000.0\n');
+    expect((await readParams(join(d, 'params.py'))).sampleRate).toBe(30000);
   });
 });

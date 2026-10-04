@@ -26,7 +26,12 @@ export class DatasetEditorProvider implements vscode.CustomReadonlyEditorProvide
             onProgress: (message, f) => progress.report({ message: f === undefined ? message : `${message} ${Math.round(f * 100)}%` }),
           }),
       );
-      return new DatasetDocument(uri, new Session(dataset), undefined);
+      try {
+        return new DatasetDocument(uri, new Session(dataset), undefined);
+      } catch (e) {
+        await dataset.close();
+        throw e;
+      }
     } catch (e) {
       return new DatasetDocument(uri, undefined, e instanceof Error ? e.message : String(e));
     }

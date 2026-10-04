@@ -64,8 +64,11 @@ export class Session implements PhySession {
 
   private buildTable(): ClusterTable {
     const ds = this.dataset;
-    const extra = [...ds.metadata.keys()].filter((k) => k !== 'group');
+    const builtin = ['n_spikes', 'depth', 'amplitude', 'firing_rate'];
+    // cluster_<builtin>.tsv overrides that column's computed value; a field named id is ignored
+    const extra = [...ds.metadata.keys()].filter((k) => k !== 'group' && k !== 'id' && !builtin.includes(k));
     const columns = ['id', 'n_spikes', 'group', 'depth', 'amplitude', 'firing_rate', ...extra];
+    const over = (k: string, id: number, computed: Cell): Cell => ds.metadata.get(k)?.get(id) ?? computed;
     const rows = Array.from(this.index.ids, (id): Cell[] => {
       const spikes = this.spikesOf(id);
       let depth: Cell = null;
@@ -84,11 +87,11 @@ export class Session implements PhySession {
       }
       return [
         id,
-        spikes.length,
+        over('n_spikes', id, spikes.length),
         ds.metadata.get('group')?.get(id) ?? null,
-        depth,
-        amplitude,
-        spikes.length / ds.duration,
+        over('depth', id, depth),
+        over('amplitude', id, amplitude),
+        over('firing_rate', id, spikes.length / ds.duration),
         ...extra.map((k) => ds.metadata.get(k)!.get(id) ?? null),
       ];
     });

@@ -46,6 +46,7 @@ export interface Dataset extends DatasetReader {
   readonly spikeSubset?: SpikeSubset;
   readonly raw: RawStatus;
   readonly metadata: Map<string, Map<number, Cell>>;
+  readonly metadataErrors: { file: string; error: string }[];
   close(): Promise<void>;
 }
 export interface OpenOptions {
@@ -70,6 +71,16 @@ const isSorted = (a: ArrayLike<number>) => {
 };
 
 export async function openDataset(paramsPath: string, opts: OpenOptions = {}): Promise<Dataset> {
+  const opened: { close(): Promise<void> }[] = []; // files to release if opening fails midway
+  try {
+    return await openDatasetInner(paramsPath, opts, opened);
+  } catch (e) {
+    await Promise.allSettled(opened.map((f) => f.close()));
+    throw e;
+  }
+}
+
+async function openDatasetInner(paramsPath: string, opts: OpenOptions, opened: { close(): Promise<void> }[]): Promise<Dataset> {
   const abs = resolve(paramsPath);
   const dir = dirname(abs);
   const params = await readParams(abs);
@@ -154,6 +165,7 @@ export async function openDataset(paramsPath: string, opts: OpenOptions = {}): P
   let features: Features | undefined;
   if (has('pc_features.npy') && has('pc_feature_ind.npy')) {
     const f = await openRows('pc_features.npy');
+    opened.push(f);
     const shp = f.header.shape;
     const ids = await maybe('pc_feature_spike_ids.npy');
     const spikeIds = ids && convert(ids.data, Int32Array);
@@ -170,6 +182,7 @@ export async function openDataset(paramsPath: string, opts: OpenOptions = {}): P
   const sub = '_phy_spikes_subset';
   if (has(`${sub}.waveforms.npy`) && has(`${sub}.channels.npy`) && has(`${sub}.spikes.npy`)) {
     const waveforms = await openRows(`${sub}.waveforms.npy`);
+    opened.push(waveforms);
     const [, nSamples, nCh] = waveforms.header.shape;
     const spikes = convert((await need(`${sub}.spikes.npy`)).data, Int32Array);
     if (!isSorted(spikes)) throw new DatasetError(`${sub}.spikes.npy is not sorted`);
@@ -178,14 +191,16 @@ export async function openDataset(paramsPath: string, opts: OpenOptions = {}): P
 
   let raw = await RawData.open(params, dir);
   if (raw.ok) {
+    opened.push(raw.raw);
     const nDat = raw.raw.nChannels;
     const bad = channelMap.find((c) => c >= nDat);
     if (bad !== undefined) {
-      await raw.raw.close();
+      await raw.raw.close(); // closing twice is harmless
       raw = { ok: false, reason: `channel_map.npy refers to channel ${bad} but n_channels_dat is ${params.nChannelsDat}` };
     }
   }
-  const metadata = await readClusterMetadata(dir);
+
+  const { metadata, skipped: metadataErrors } = await readClusterMetadata(dir);
 
   return {
     dir,
@@ -208,6 +223,7 @@ export async function openDataset(paramsPath: string, opts: OpenOptions = {}): P
     spikeSubset,
     raw,
     metadata,
+    metadataErrors,
     async close() {
       await features?.file.close();
       await spikeSubset?.waveforms.close();

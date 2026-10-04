@@ -63,7 +63,10 @@ export function clusterMeanTemplate(
   return out;
 }
 
-/** Peak channel by peak-to-peak amplitude plus its nearest neighbours on the same shank, by decreasing amplitude. */
+/**
+ * Peak channel by peak-to-peak amplitude plus its nearest neighbours on the same shank, by decreasing amplitude.
+ * Distance ties are broken by channel index (stable sort); phylib's unstable np.argsort may order equidistant channels differently.
+ */
 export function bestChannels(
   mean: Float64Array,
   nSamples: number,

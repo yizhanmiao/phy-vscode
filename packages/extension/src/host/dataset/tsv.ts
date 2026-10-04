@@ -21,16 +21,23 @@ export function parseClusterTable(text: string, sep: string, file: string): { fi
   };
 }
 
-/** Every cluster_<field>.tsv/.csv in `dir` (phy ignores cluster_info.tsv). */
-export async function readClusterMetadata(dir: string): Promise<Map<string, Map<number, Cell>>> {
+/** Every cluster_<field>.tsv/.csv in `dir` (phy ignores cluster_info.tsv); unparseable files are skipped and reported. */
+export async function readClusterMetadata(
+  dir: string,
+): Promise<{ metadata: Map<string, Map<number, Cell>>; skipped: { file: string; error: string }[] }> {
   const out = new Map<string, Map<number, Cell>>();
+  const skipped: { file: string; error: string }[] = [];
   const names = (await readdir(dir))
     .filter((n) => /^cluster_.+\.(tsv|csv)$/.test(n) && n !== 'cluster_info.tsv')
     .sort();
   for (const name of names) {
     const sep = name.endsWith('.csv') ? ',' : '\t';
-    const { field, values } = parseClusterTable(await readFile(join(dir, name), 'utf8'), sep, name);
-    if (!out.has(field)) out.set(field, values);
+    try {
+      const { field, values } = parseClusterTable(await readFile(join(dir, name), 'utf8'), sep, name);
+      if (!out.has(field)) out.set(field, values);
+    } catch (e) {
+      skipped.push({ file: name, error: (e as Error).message });
+    }
   }
-  return out;
+  return { metadata: out, skipped };
 }

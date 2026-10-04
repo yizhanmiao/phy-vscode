@@ -121,4 +121,20 @@ describe('openDataset', () => {
     const ds = await openDataset(join(d, 'params.py'));
     expect(ds.raw).toEqual({ ok: false, reason: 'channel_map.npy refers to channel 5 but n_channels_dat is 4' });
   });
+
+  it('skips a malformed cluster_*.tsv and reports it', async () => {
+    const d = copy('base');
+    writeFileSync(join(d, 'cluster_bad.tsv'), 'cluster_id\tbad\nabc\t1\n');
+    const ds = await openDataset(join(d, 'params.py'));
+    expect([...ds.metadata.keys()]).toEqual(['ContamPct', 'KSLabel', 'group']);
+    expect(ds.metadataErrors).toHaveLength(1);
+    expect(ds.metadataErrors[0]).toMatchObject({ file: 'cluster_bad.tsv' });
+    expect(ds.metadataErrors[0].error).toMatch(/bad cluster id/);
+  });
+
+  it('rejects (and releases its files) when pc_feature_spike_ids.npy is unsorted', async () => {
+    const d = copy('subset');
+    writeNpy(join(d, 'pc_feature_spike_ids.npy'), BigInt64Array.from([4n, 2n, 0n]), [3]);
+    await expect(openDataset(join(d, 'params.py'))).rejects.toThrow(/not sorted/);
+  });
 });

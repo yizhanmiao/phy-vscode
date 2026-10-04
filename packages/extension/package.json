@@ -13,6 +13,7 @@
     "workspace"
   ],
   "main": "./dist/extension.cjs",
+  "capabilities": { "untrustedWorkspaces": { "supported": true } },
   "contributes": {
     "commands": [{ "command": "phy.openDataset", "title": "Phy: Open Dataset…" }],
     "customEditors": [

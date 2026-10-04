@@ -7,7 +7,13 @@ export class Emitter<T> {
     return { dispose: () => void this.listeners.delete(listener) };
   };
   fire(e: T): void {
-    for (const l of [...this.listeners]) l(e);
+    for (const l of [...this.listeners]) {
+      try {
+        l(e);
+      } catch (err) {
+        console.error('Theia-Phy: event listener threw', err);
+      }
+    }
   }
   dispose(): void {
     this.listeners.clear();

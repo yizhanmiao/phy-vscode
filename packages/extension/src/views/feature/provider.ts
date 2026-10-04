@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { bsearch, intersectSorted, regularRange, regularSubset } from '../../compute/spikes';
 import { NeedsFileError, type Dataset, type Features } from '../../host/dataset/dataset';
 import { convert } from '../../host/dataset/npy';
@@ -17,7 +19,9 @@ export const featureView: BuiltinView = {
     const ds = session.dataset;
     const F = ds.features;
     const st = ds.spikeTemplates;
-    if (!F) throw new NeedsFileError('pc_features.npy');
+    if (!F) {
+      throw new NeedsFileError(existsSync(join(ds.dir, 'pc_features.npy')) ? 'pc_feature_ind.npy' : 'pc_features.npy');
+    }
     if (!st) throw new NeedsFileError('spike_templates.npy');
     const sel = session.selection;
     if (sel.length === 0) return { meta: { channels: [], nPcs: 0, groups: [] } satisfies FeatureMeta, buffers: [] };

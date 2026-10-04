@@ -67,6 +67,7 @@ export interface ViewResult {
 export interface HistogramDefinition {
   id: string;
   label: string;
+  /** Unit of the x axis (e.g. 'ms' for ISI, 's' for firing rate over time). */
   unit?: string;
   /** x range covered by the bins; renderers fall back to bin indices when absent. */
   range?(ctx: ComputeContext): [number, number];

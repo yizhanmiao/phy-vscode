@@ -125,5 +125,5 @@ export function toParams(v: Record<string, PyValue>, file = 'params.py'): Params
 }
 
 export async function readParams(path: string): Promise<Params> {
-  return toParams(parsePythonLiterals(await readFile(path, 'utf8'), path), path);
+  return toParams(parsePythonLiterals((await readFile(path, 'utf8')).replace(/^\uFEFF/, ''), path), path);
 }

@@ -57,6 +57,7 @@ def mean_template(templates, cols, wmi, spike_templates, spikes, n_ch):
 
 
 def best_channels(mean, pos, shanks, n=N_BEST):
+    # ties in distance: the TS port breaks them by channel index (stable); np.argsort is unstable on equidistant channels
     amp = mean.max(axis=0) - mean.min(axis=0)
     best = int(np.argmax(amp))
     d = ((pos - pos[best]) ** 2).sum(axis=1)

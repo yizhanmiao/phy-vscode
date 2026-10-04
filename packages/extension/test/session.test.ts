@@ -1,7 +1,7 @@
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PALETTE } from '../src/host/session';
 import { CLUSTER_IDS, fixtureDir } from './fixtures/makeFixture';
 import { golden, openSession } from './helpers';
@@ -56,5 +56,35 @@ describe('Session', () => {
     expect(session.clusters.columns).toEqual(['id', 'n_spikes', 'group', 'depth', 'amplitude', 'firing_rate']);
     expect(session.clusters.rows.every((r) => r[3] === null && r[4] === null)).toBe(true);
     expect(session.bestChannels(0)).toBeUndefined();
+  });
+
+  it('lets cluster_<builtin>.tsv override that column and ignores cluster_id.tsv', async () => {
+    const d = mkdtempSync(join(tmpdir(), 'override-'));
+    cpSync(fixtureDir('base'), d, { recursive: true });
+    writeFileSync(join(d, 'cluster_firing_rate.tsv'), 'cluster_id\tfiring_rate\n2\t123.5\n');
+    writeFileSync(join(d, 'cluster_id.tsv'), 'cluster_id\tid\n2\t999\n');
+    const { session } = await openSession(d);
+    const { columns, rows } = session.clusters;
+    expect(new Set(columns).size).toBe(columns.length);
+    expect(columns).toEqual(['id', 'n_spikes', 'group', 'depth', 'amplitude', 'firing_rate', 'ContamPct', 'KSLabel']);
+    const fr = columns.indexOf('firing_rate');
+    expect(rows.find((r) => r[0] === 2)![fr]).toBe(123.5);
+    const other = rows.find((r) => r[0] !== 2)!;
+    expect(other[fr]).toBeCloseTo((other[1] as number) / session.dataset.duration, 9);
+    expect(rows.find((r) => r[0] === 2)![0]).toBe(2);
+  });
+
+  it('keeps notifying later listeners when one throws', async () => {
+    const { session } = await openSession('base');
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const seen: number[][] = [];
+    session.onDidChangeSelection(() => {
+      throw new Error('boom');
+    });
+    session.onDidChangeSelection((s) => seen.push([...s]));
+    expect(() => session.select([2])).not.toThrow();
+    expect(seen).toEqual([[2]]);
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
   });
 });
