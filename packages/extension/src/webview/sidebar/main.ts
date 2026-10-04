@@ -19,9 +19,9 @@ style.textContent = `
 .filter{margin:0 6px 4px;padding:2px 4px;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,transparent)}
 .filter.error{border-color:var(--vscode-inputValidation-errorBorder,red)}
 .hdr,.row{display:grid;grid-template-columns:var(--cols);align-items:center}
-.hdr{font-weight:600;border-bottom:1px solid var(--vscode-panel-border,#444);cursor:pointer;user-select:none}
+.hdr{font-weight:600;border-bottom:1px solid var(--vscode-panel-border,#444);cursor:pointer;user-select:none;overflow:hidden;border-left:3px solid transparent}
 .hdr>div,.row>div{padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.scroll{flex:1;overflow:auto;position:relative;outline:none}
+.scroll{flex:1;overflow:auto;position:relative;outline:none;scrollbar-gutter:stable}
 .row{position:absolute;left:0;right:0;height:${ROW_H}px;cursor:default;border-left:3px solid transparent}
 .row.selected{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}
 .empty{padding:8px;color:var(--vscode-descriptionForeground)}`;
@@ -67,8 +67,8 @@ function renderHeader(): void {
   header.replaceChildren(
     ...columns.map((c) => {
       const d = document.createElement('div');
-      const arrow = state.sort?.column === c ? (state.sort.descending ? ' ▼' : ' ▲') : '';
-      d.textContent = c + arrow;
+      const arrow = state.sort?.column === c ? (state.sort.descending ? '▼ ' : '▲ ') : ''; // before the name so it survives truncation
+      d.textContent = arrow + c;
       d.title = c;
       d.onclick = () => {
         state = { ...state, sort: { column: c, descending: state.sort?.column === c ? !state.sort.descending : false } };
@@ -125,8 +125,23 @@ function scrollTo(id: number): void {
   else if (top + ROW_H > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = top + ROW_H - scroller.clientHeight;
 }
 
-scroller.addEventListener('scroll', renderRows);
-new ResizeObserver(renderRows).observe(scroller);
+/**
+ * The header sits outside the scroller, so it follows the rows' horizontal scroll (both have the same 3 px left offset) and
+ * gets the scroller's scrollbar width as right padding. (`scrollbar-gutter` on the header would also narrow its content, but
+ * Chrome then stops its scroll range one gutter short of the scroller's, shifting the right-hand headers.)
+ */
+const syncHeader = () => {
+  header.style.paddingRight = `${scroller.offsetWidth - scroller.clientWidth}px`;
+  header.scrollLeft = scroller.scrollLeft;
+};
+scroller.addEventListener('scroll', () => {
+  syncHeader();
+  renderRows();
+});
+new ResizeObserver(() => {
+  syncHeader();
+  renderRows();
+}).observe(scroller);
 scroller.addEventListener('keydown', (ev) => {
   const delta = isPlainArrow(ev);
   if (!delta) return;
@@ -153,6 +168,7 @@ window.addEventListener('message', (e: MessageEvent<HostToSidebar>) => {
     clearTimeout(debounce); // a pending filter edit belongs to the previous dataset; never persist it over this one
     ({ columns, rows } = m);
     info.textContent = m.info;
+    info.title = m.info; // the one-line text truncates in a narrow sidebar
     const local = api.getState();
     state = { ...(local?.key === m.info ? local : m.state), key: m.info };
     api.setState(state);
