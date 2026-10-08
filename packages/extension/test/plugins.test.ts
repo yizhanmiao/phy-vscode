@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from '
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { API_VERSION, type PhySession } from '@phy-vscode/api';
+import { API_VERSION, type ClusterUpdate, type PhyApi, type PhySession } from '@phy-vscode/api';
 import { describe, expect, it, vi } from 'vitest';
 import { Emitter } from '../src/host/emitter';
 import { ModRegistry, type RegistryChange } from '../src/host/modRegistry';
@@ -20,11 +20,23 @@ const tmpDir = () => realpathSync(mkdtempSync(join(tmpdir(), 'phy-plugins-'))); 
 function setup() {
   const dir = tmpDir();
   const mods = new ModRegistry();
-  const api = createPhyApi(mods, { activeSession: () => undefined, onDidOpenSession: new Emitter<PhySession>().event });
+  const sel = new Emitter<readonly number[]>();
+  const opened = new Emitter<PhySession>();
+  const session: PhySession = {
+    dataset: {} as PhySession['dataset'],
+    clusters: { columns: ['id'], rows: [] },
+    selection: [],
+    select: () => {},
+    spikesOf: () => new Int32Array(0),
+    colorOf: () => '#000',
+    onDidChangeSelection: sel.event,
+    onDidChangeClusters: new Emitter<ClusterUpdate>().event,
+  };
+  const api = createPhyApi(mods, { activeSession: () => session, onDidOpenSession: opened.event });
   const log = vi.fn();
   const host = new PluginHost({ api, loader: requireLoader(createRequire(import.meta.url)), roots: () => [dir], log, hold: () => mods.hold() });
   const ids = () => mods.metrics().map((m) => m.id);
-  return { dir, mods, host, log, ids };
+  return { dir, mods, host, log, ids, sel, opened, session };
 }
 
 describe('PluginHost', () => {
@@ -72,6 +84,7 @@ describe('PluginHost', () => {
 
   it('awaits an async activate and disposes what it returns on unload', async () => {
     const { dir, host, mods } = setup();
+    delete (globalThis as { __phyDisposed?: boolean }).__phyDisposed;
     write(join(dir, 'a.js'), `exports.activate = async (api) => { await null; api.registerHistogram({ id: 'h', label: 'h', compute: () => new Float64Array(1) }); return { dispose() { globalThis.__phyDisposed = true; } }; };`);
     await host.load();
     expect(mods.histograms().some((h) => h.id === 'h')).toBe(true);
@@ -120,14 +133,14 @@ describe('PluginHost', () => {
     expect(ids()).toEqual(['now']);
   });
 
-  it('an unreadable root is logged and the other roots still load', async () => {
+  it.skipIf(process.getuid?.() === 0 || process.platform === 'win32')('an unreadable root is logged and the other roots still load', async () => {
     const { dir, mods, log } = setup();
     mkdirSync(join(dir, 'locked'));
-    chmodSync(join(dir, 'locked'), 0o000); // cannot be listed
     write(join(dir, 'good', 'a.js'), metricPlugin('good'));
     const api = createPhyApi(mods, { activeSession: () => undefined, onDidOpenSession: new Emitter<PhySession>().event });
     const host = new PluginHost({ api, loader: requireLoader(createRequire(import.meta.url)), roots: () => [join(dir, 'locked'), join(dir, 'good')], log, hold: () => mods.hold() });
     try {
+      chmodSync(join(dir, 'locked'), 0o000); // cannot be listed
       expect(await host.load()).toEqual({ loaded: 1, problems: [] });
     } finally {
       chmodSync(join(dir, 'locked'), 0o755);
@@ -138,21 +151,103 @@ describe('PluginHost', () => {
 
   it('calls deactivate on unload', async () => {
     const { dir, host } = setup();
+    delete (globalThis as { __phyDeactivated?: number }).__phyDeactivated;
     write(join(dir, 'a.js'), `${metricPlugin('a')} exports.deactivate = () => { globalThis.__phyDeactivated = (globalThis.__phyDeactivated ?? 0) + 1; };`);
     await host.load();
     await host.reload();
-    expect((globalThis as { __phyDeactivated?: number }).__phyDeactivated).toBeGreaterThanOrEqual(1);
+    expect((globalThis as { __phyDeactivated?: number }).__phyDeactivated).toBe(1);
   });
 
-  it('tracks onDidOpenSession listeners too', async () => {
-    const { dir, host } = setup();
-    write(join(dir, 'a.js'), `exports.activate = (api) => { api.onDidOpenSession(() => {}); };`);
-    expect((await host.load()).loaded).toBe(1);
+  it('removes onDidOpenSession listeners on unload', async () => {
+    const { dir, host, opened, session } = setup();
+    write(join(dir, 'a.js'), `exports.activate = (api) => { api.onDidOpenSession(() => { globalThis.__phyOpened = (globalThis.__phyOpened ?? 0) + 1; }); };`);
+    (globalThis as { __phyOpened?: number }).__phyOpened = 0;
+    await host.load();
     await host.reload();
+    opened.fire(session);
+    expect((globalThis as { __phyOpened?: number }).__phyOpened).toBe(1);
+  });
+
+  const count = (key: string) => (globalThis as Record<string, unknown>)[key] as number;
+  const subscribe = (key: string) => `api.activeSession().onDidChangeSelection(() => { globalThis.${key} = (globalThis.${key} ?? 0) + 1; });`;
+
+  it('undoes session subscriptions made by a plugin that then throws', async () => {
+    const { dir, host, sel } = setup();
+    write(join(dir, 'a.js'), `exports.activate = (api) => { ${subscribe('__phySelThrow')} throw new Error('boom'); };`);
+    await host.load();
+    sel.fire([1]);
+    expect(count('__phySelThrow')).toBeUndefined();
+  });
+
+  it('removes session subscriptions (via activeSession and via onDidOpenSession) on reload', async () => {
+    const { dir, host, sel, opened, session } = setup();
+    write(
+      join(dir, 'a.js'),
+      `exports.activate = (api) => { ${subscribe('__phySelReload')} api.onDidOpenSession((s) => s.onDidChangeSelection(() => { globalThis.__phySelOpened = (globalThis.__phySelOpened ?? 0) + 1; })); };`,
+    );
+    await host.load();
+    opened.fire(session);
+    await host.reload();
+    (globalThis as Record<string, unknown>).__phySelReload = 0;
+    (globalThis as Record<string, unknown>).__phySelOpened = 0;
+    opened.fire(session);
+    sel.fire([1]);
+    expect(count('__phySelReload')).toBe(1);
+    expect(count('__phySelOpened')).toBe(1);
+  });
+
+  it('hands a plugin the same session object every time', async () => {
+    const { dir, host, opened, session } = setup();
+    write(join(dir, 'a.js'), `exports.activate = (api) => { api.onDidOpenSession((s) => { globalThis.__phySame = s === api.activeSession(); }); globalThis.__phySame0 = api.activeSession() === api.activeSession(); };`);
+    await host.load();
+    opened.fire(session);
+    expect((globalThis as Record<string, unknown>).__phySame0).toBe(true);
+    expect((globalThis as Record<string, unknown>).__phySame).toBe(true);
+  });
+
+  it('wraps the session without changing what it reads or does', async () => {
+    const { dir, host } = setup();
+    write(join(dir, 'a.js'), `exports.activate = (api) => { const s = api.activeSession(); globalThis.__phyRead = [s.clusters.columns[0], s.selection.length, s.colorOf(1), s.spikesOf(1).length, typeof s.select, typeof s.dataset]; };`);
+    await host.load();
+    expect((globalThis as Record<string, unknown>).__phyRead).toEqual(['id', 0, '#000', 0, 'function', 'object']);
+  });
+
+  it('a scoped API used after its plugin was unloaded throws and registers nothing', async () => {
+    const { dir, host, ids } = setup();
+    write(join(dir, 'a.js'), `exports.activate = (api) => { exports.late = () => api.registerClusterMetric({ id: 'late', label: 'l', compute: () => 1 }); };`);
+    await host.load();
+    const mod = createRequire(import.meta.url)(join(dir, 'a.js')) as { late(): void };
+    await host.reload();
+    expect(() => mod.late()).toThrow('plugin unloaded');
+    expect(ids()).toEqual([]);
+  });
+
+  it('a scoped API used after its plugin failed to activate throws and registers nothing', async () => {
+    const { dir, host, ids } = setup();
+    write(join(dir, 'a.js'), `exports.activate = (api) => { globalThis.__phyLateApi = api; throw new Error('boom'); };`);
+    await host.load();
+    const api = (globalThis as unknown as { __phyLateApi: PhyApi }).__phyLateApi;
+    expect(() => api.registerClusterMetric({ id: 'late', label: 'l', compute: () => 1 })).toThrow('plugin unloaded');
+    expect(() => api.activeSession()?.onDidChangeSelection(() => {})).toThrow('plugin unloaded');
+    expect(ids()).toEqual([]);
+  });
+
+  it('survives a plugin that throws a value that cannot be printed', async () => {
+    const { dir, host } = setup();
+    write(join(dir, 'a.js'), `exports.activate = () => { throw Object.create(null); };`);
+    const r = await host.load();
+    expect(r.problems).toEqual([expect.stringMatching(/a\.js: non-printable error/)]);
   });
 });
 
 describe('discoverPlugins and pluginRoots', () => {
+  it('reports a plugin once when two roots reach the same file', () => {
+    const dir = tmpDir();
+    write(join(dir, 'one.js'), metricPlugin('one'));
+    const found = discoverPlugins([dir, join(dir, 'one.js')], vi.fn());
+    expect(found).toEqual([{ file: join(dir, 'one.js'), scope: join(dir, 'one.js') }]);
+  });
+
   it('logs a missing path instead of throwing, and accepts a single file as a root', () => {
     const dir = tmpDir();
     write(join(dir, 'one.js'), metricPlugin('one'));

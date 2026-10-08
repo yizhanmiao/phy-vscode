@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, join, resolve, sep } from 'node:path';
-import { API_VERSION, satisfiesApi, type Disposable, type PhyApi } from '@phy-vscode/api';
+import { API_VERSION, satisfiesApi, type Disposable, type PhyApi, type PhySession } from '@phy-vscode/api';
 
 export type PluginLog = (message: string) => void;
 
@@ -58,6 +58,11 @@ export function pluginRoots(setting: unknown, home: string, log: PluginLog): str
  */
 export function discoverPlugins(roots: readonly string[], log: PluginLog): DiscoveredPlugin[] {
   const found: DiscoveredPlugin[] = [];
+  const seen = new Set<string>();
+  const add = (file: string, scope: string) => {
+    if (!seen.has(file)) found.push({ file, scope });
+    seen.add(file);
+  };
   for (const root of roots) {
     try {
       const st = statSync(root, { throwIfNoEntry: false });
@@ -67,7 +72,7 @@ export function discoverPlugins(roots: readonly string[], log: PluginLog): Disco
       }
       if (st.isFile()) {
         const file = realpathSync(root);
-        found.push({ file, scope: file });
+        add(file, file);
         continue;
       }
       for (const name of readdirSync(root).sort()) {
@@ -77,8 +82,8 @@ export function discoverPlugins(roots: readonly string[], log: PluginLog): Disco
           const e = statSync(p, { throwIfNoEntry: false });
           if (e?.isFile() && name.endsWith('.js')) {
             const file = realpathSync(p);
-            found.push({ file, scope: file });
-          } else if (e?.isDirectory() && existsSync(join(p, 'index.js'))) found.push({ file: realpathSync(join(p, 'index.js')), scope: realpathSync(p) });
+            add(file, file);
+          } else if (e?.isDirectory() && existsSync(join(p, 'index.js'))) add(realpathSync(join(p, 'index.js')), realpathSync(p));
         } catch (err) {
           log(`plugin path unreadable: ${p}: ${text(err)}`);
         }
@@ -107,22 +112,71 @@ const tryDispose = (d: Disposable): void => {
     // a failing dispose must not stop the rest being undone
   }
 };
-const text = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const text = (e: unknown): string => {
+  try {
+    return e instanceof Error ? e.message : String(e);
+  } catch {
+    return 'non-printable error'; // e.g. a thrown Object.create(null)
+  }
+};
 
-/** A copy of `api` that remembers everything a plugin registers, so it can be undone. */
-function scoped(api: PhyApi, subs: Disposable[]): PhyApi {
+/**
+ * A copy of `api` that remembers everything a plugin registers or subscribes to, so it can be undone, and that stops working
+ * (throws) once closed, so a timer or callback that outlives its plugin cannot register into a registry nobody cleans up.
+ * Sessions the plugin gets from `activeSession()` or `onDidOpenSession` are wrapped so their events are tracked too.
+ * ponytail: a session reaching plugin code through a view provider's or metric's `ctx.session` is the raw session, so listeners
+ * added there are not tracked; wrap ctx.session as well if plugins start doing that.
+ */
+function scoped(api: PhyApi, subs: Disposable[]): { api: PhyApi; close(): void } {
+  let closed = false;
+  const guard = () => {
+    if (closed) throw new Error('plugin unloaded');
+  };
   const track = (d: Disposable): Disposable => (subs.push(d), d);
+  const wrappers = new WeakMap<PhySession, PhySession>();
+  const wrap = (session: PhySession): PhySession => {
+    let w = wrappers.get(session);
+    if (!w) {
+      w = {
+        get dataset() {
+          return session.dataset;
+        },
+        get clusters() {
+          return session.clusters;
+        },
+        get selection() {
+          return session.selection;
+        },
+        select: (ids) => session.select(ids),
+        spikesOf: (id) => session.spikesOf(id),
+        colorOf: (id) => session.colorOf(id),
+        onDidChangeSelection: (l) => (guard(), track(session.onDidChangeSelection(l))),
+        onDidChangeClusters: (l) => (guard(), track(session.onDidChangeClusters(l))),
+      };
+      wrappers.set(session, w);
+    }
+    return w;
+  };
   return {
-    ...api,
-    onDidOpenSession: (l) => track(api.onDidOpenSession(l)),
-    registerView: (d) => track(api.registerView(d)),
-    registerClusterMetric: (d) => track(api.registerClusterMetric(d)),
-    registerHistogram: (d) => track(api.registerHistogram(d)),
+    api: {
+      ...api,
+      activeSession: () => {
+        const s = api.activeSession();
+        return s && wrap(s);
+      },
+      onDidOpenSession: (l) => (guard(), track(api.onDidOpenSession((s) => l(wrap(s))))),
+      registerView: (d) => (guard(), track(api.registerView(d))),
+      registerClusterMetric: (d) => (guard(), track(api.registerClusterMetric(d))),
+      registerHistogram: (d) => (guard(), track(api.registerHistogram(d))),
+    },
+    close: () => {
+      closed = true;
+    },
   };
 }
 
 export class PluginHost {
-  private active: { file: string; scope: string; plugin: PluginModule; subs: Disposable[] }[] = [];
+  private active: { file: string; scope: string; plugin: PluginModule; subs: Disposable[]; close(): void }[] = [];
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly deps: PluginHostDeps) {}
@@ -166,25 +220,29 @@ export class PluginHost {
     let loaded = 0;
     for (const { file, scope } of discoverPlugins(this.deps.roots(), log)) {
       const subs: Disposable[] = [];
+      const { api, close } = scoped(this.deps.api, subs);
       try {
         const exported = loader.load(file) as ({ default?: unknown } & Partial<PluginModule>) | undefined;
         const plugin = (typeof exported?.activate === 'function' ? exported : exported?.default) as Partial<PluginModule> | undefined;
         if (typeof plugin?.activate !== 'function') {
           log(`${file}: no activate() export, skipped`);
+          close();
           loader.unload([scope]);
           continue;
         }
         if (plugin.apiVersion !== undefined && !satisfiesApi(plugin.apiVersion)) {
           fail(`${file}: needs API ${plugin.apiVersion}, this phy-vscode has ${API_VERSION}`);
+          close();
           loader.unload([scope]);
           continue;
         }
-        const returned = await plugin.activate(scoped(this.deps.api, subs));
+        const returned = await plugin.activate(api);
         if (isDisposable(returned)) subs.push(returned);
-        this.active.push({ file, scope, plugin: plugin as PluginModule, subs });
+        this.active.push({ file, scope, plugin: plugin as PluginModule, subs, close });
         loaded++;
         log(`${file}: loaded`);
       } catch (e) {
+        close();
         for (const s of subs.reverse()) tryDispose(s);
         loader.unload([scope]); // a module that loaded but failed to activate is cached; forget it so a fixed file is re-read on reload
         fail(`${file}: ${text(e)}`);
@@ -197,12 +255,13 @@ export class PluginHost {
     const { log, loader } = this.deps;
     const active = this.active.reverse();
     this.active = [];
-    for (const { file, plugin, subs } of active) {
+    for (const { file, plugin, subs, close } of active) {
       try {
         await plugin.deactivate?.();
       } catch (e) {
         log(`${file}: deactivate failed: ${text(e)}`);
       }
+      close();
       for (const s of subs.reverse()) tryDispose(s);
     }
     loader.unload(active.map((a) => a.scope));
