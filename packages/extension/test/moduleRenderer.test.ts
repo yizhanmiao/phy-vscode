@@ -71,6 +71,20 @@ describe('moduleRenderer', () => {
     expect(report.mock.calls[0][0]).toMatch(/render error: bad meta/);
   });
 
+  it('reports a throwing default factory once and ignores later updates', async () => {
+    const report = vi.fn();
+    const r = moduleRenderer('u', report, async () => ({
+      default: () => {
+        throw new Error('boom');
+      },
+    }));
+    r.mount(el, plot, host);
+    await flush();
+    expect(report).toHaveBeenCalledOnce();
+    expect(report.mock.calls[0][0]).toMatch(/could not start.*boom/);
+    expect(() => r.update(1, [], sel)).not.toThrow();
+  });
+
   it('does not mount a module that arrives after dispose', async () => {
     const m = mod();
     const r = moduleRenderer('u', vi.fn(), async () => m);

@@ -20,6 +20,7 @@ interface Slot {
   header: HTMLElement;
   visible: boolean;
   lastSeq: number;
+  failure?: string; // a mod renderer that failed to load or run: its error outlives later viewData
 }
 
 const vscode = vscodeApi<LocalState>();
@@ -76,7 +77,10 @@ function rendererFor(viewId: string): ViewRenderer {
 function reportRendered(viewId: string, error?: string): void {
   const slot = slots.get(viewId);
   if (!slot) return;
-  if (error) setHeader(slot, error, true);
+  if (error) {
+    slot.failure = error;
+    setHeader(slot, error, true);
+  }
   post({ type: 'rendered', viewId, seq: slot.lastSeq, error });
 }
 
@@ -169,6 +173,11 @@ window.addEventListener('message', (e: MessageEvent<HostToPlot>) => {
       const slot = slots.get(m.viewId);
       if (!slot || m.seq < slot.lastSeq) return;
       slot.lastSeq = m.seq;
+      if (slot.failure) {
+        setHeader(slot, slot.failure, true);
+        post({ type: 'rendered', viewId: m.viewId, seq: m.seq, error: slot.failure });
+        return;
+      }
       const notice = (m.meta as { notice?: unknown } | null)?.notice;
       setHeader(slot, typeof notice === 'string' ? notice : '', false);
       try {
