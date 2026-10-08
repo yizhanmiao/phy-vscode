@@ -1,4 +1,4 @@
-import type { Cell, ClusterTable, ClusterUpdate, PhySession } from '@phy-vscode/api';
+import type { Cell, ClusterMetricDefinition, ClusterTable, ClusterUpdate, PhySession } from '@phy-vscode/api';
 import { bsearch, buildClusterIndex, spikesOf, type ClusterIndex } from '../compute/spikes';
 import { bestChannels, clusterMeanTemplate } from '../compute/templates';
 import type { Dataset } from './dataset/dataset';
@@ -10,9 +10,21 @@ export const PALETTE = [
   '#00fecf', '#b0a5ff', '#94ad84', '#9a6900', '#376a62', '#d3008c', '#fef590', '#c86f66',
 ];
 
+export interface SessionMods {
+  /** Registered cluster metrics. Must return the same array object until the set changes. */
+  metrics?(): readonly ClusterMetricDefinition[];
+  warn?(message: string): void;
+}
+const NO_METRICS: readonly ClusterMetricDefinition[] = [];
+
 export class Session implements PhySession {
   readonly index: ClusterIndex;
-  readonly clusters: ClusterTable;
+  private readonly base: ClusterTable;
+  private table: ClusterTable;
+  private tableFor = NO_METRICS;
+  private labels: Record<string, string> = {};
+  private readonly metricColumns = new WeakMap<ClusterMetricDefinition, Cell[]>();
+  private readonly warned = new Set<string>();
   private _selection: number[] = [];
   private readonly selectionEmitter = new Emitter<readonly number[]>();
   private readonly clustersEmitter = new Emitter<ClusterUpdate>();
@@ -20,9 +32,64 @@ export class Session implements PhySession {
   readonly onDidChangeClusters = this.clustersEmitter.event;
   private readonly channelCache = new Map<number, Int32Array>();
 
-  constructor(readonly dataset: Dataset) {
+  constructor(readonly dataset: Dataset, private readonly mods: SessionMods = {}) {
     this.index = buildClusterIndex(dataset.spikeClusters);
-    this.clusters = this.buildTable();
+    this.base = this.table = this.buildTable();
+  }
+
+  /** The dataset's columns plus one per registered cluster metric. */
+  get clusters(): ClusterTable {
+    const defs = this.mods.metrics?.() ?? NO_METRICS;
+    if (defs !== this.tableFor) {
+      this.table = this.withMetrics(defs);
+      this.tableFor = defs;
+    }
+    return this.table;
+  }
+
+  /** Column name → tooltip text for the metric columns. */
+  metricLabels(): Record<string, string> {
+    void this.clusters;
+    return this.labels;
+  }
+
+  private warn(message: string): void {
+    if (this.warned.has(message)) return;
+    this.warned.add(message);
+    (this.mods.warn ?? console.warn)(message);
+  }
+
+  private withMetrics(defs: readonly ClusterMetricDefinition[]): ClusterTable {
+    const live = defs.filter((d) => {
+      if (!this.base.columns.includes(d.id)) return true;
+      this.warn(`cluster metric '${d.id}' skipped: the dataset already has a column of that name`);
+      return false;
+    });
+    this.labels = Object.fromEntries(live.map((d) => [d.id, d.label]));
+    if (live.length === 0) return this.base;
+    const columns = live.map((d) => this.metricColumn(d));
+    return {
+      columns: [...this.base.columns, ...live.map((d) => d.id)],
+      rows: this.base.rows.map((r, i) => [...r, ...columns.map((c) => c[i])]),
+    };
+  }
+
+  // ponytail: metrics run synchronously on the extension host, once per cluster; a heavy one blocks it. Move to a worker if one ever needs to.
+  private metricColumn(d: ClusterMetricDefinition): Cell[] {
+    let col = this.metricColumns.get(d);
+    if (col) return col;
+    const ctx = { session: this };
+    col = this.base.rows.map((r) => {
+      try {
+        const v = d.compute(r[0] as number, ctx);
+        return typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v)) ? v : null;
+      } catch (e) {
+        this.warn(`cluster metric '${d.id}' failed for cluster ${r[0]}: ${e instanceof Error ? e.message : String(e)}`);
+        return null;
+      }
+    });
+    this.metricColumns.set(d, col);
+    return col;
   }
 
   get selection(): readonly number[] {

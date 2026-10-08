@@ -36,6 +36,7 @@ const body = document.createElement('div');
 scroller.append(spacer, body);
 
 let columns: string[] = [];
+let labels: Record<string, string> = {};
 let rows: Cell[][] = [];
 let view: Cell[][] = [];
 let state: LocalState = {};
@@ -70,7 +71,7 @@ function renderHeader(): void {
       const d = document.createElement('div');
       const arrow = state.sort?.column === c ? (state.sort.descending ? '▼ ' : '▲ ') : ''; // before the name so it survives truncation
       d.textContent = arrow + c;
-      d.title = c;
+      d.title = labels[c] ?? c;
       d.onclick = () => {
         state = { ...state, sort: { column: c, descending: state.sort?.column === c ? !state.sort.descending : false } };
         persist();
@@ -168,6 +169,7 @@ window.addEventListener('message', (e: MessageEvent<HostToSidebar>) => {
   if (m.type === 'clusterTable') {
     clearTimeout(debounce); // a pending filter edit belongs to the previous dataset; never persist it over this one
     ({ columns, rows } = m);
+    labels = m.labels ?? {};
     info.textContent = m.info;
     info.title = m.info; // the one-line text truncates in a narrow sidebar
     const local = api.getState();

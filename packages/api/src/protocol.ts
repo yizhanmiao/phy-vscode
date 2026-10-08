@@ -46,6 +46,6 @@ export type SidebarToHost =
 
 /** Host → Cluster sidebar. */
 export type HostToSidebar =
-  | { type: 'clusterTable'; columns: string[]; rows: Cell[][]; info: string; state: TableState }
+  | { type: 'clusterTable'; columns: string[]; rows: Cell[][]; labels?: Record<string, string>; info: string; state: TableState }
   | { type: 'selection'; selection: SelectionMsg }
   | { type: 'empty' };
