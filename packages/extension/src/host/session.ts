@@ -25,6 +25,7 @@ export class Session implements PhySession {
   private labels: Record<string, string> = {};
   private readonly metricColumns = new WeakMap<ClusterMetricDefinition, Cell[]>();
   private readonly warned = new Set<string>();
+  private building = false;
   private _selection: number[] = [];
   private readonly selectionEmitter = new Emitter<readonly number[]>();
   private readonly clustersEmitter = new Emitter<ClusterUpdate>();
@@ -39,10 +40,17 @@ export class Session implements PhySession {
 
   /** The dataset's columns plus one per registered cluster metric. */
   get clusters(): ClusterTable {
+    // a metric reading session.clusters while the table is being built gets the previous table, not a rebuild
+    if (this.building) return this.table;
     const defs = this.mods.metrics?.() ?? NO_METRICS;
     if (defs !== this.tableFor) {
-      this.table = this.withMetrics(defs);
-      this.tableFor = defs;
+      this.building = true;
+      try {
+        this.table = this.withMetrics(defs);
+        this.tableFor = defs;
+      } finally {
+        this.building = false;
+      }
     }
     return this.table;
   }
@@ -53,16 +61,18 @@ export class Session implements PhySession {
     return this.labels;
   }
 
-  private warn(message: string): void {
-    if (this.warned.has(message)) return;
-    this.warned.add(message);
+  /** Reports `message` at most once per `key`. */
+  private warn(key: string, message: string): void {
+    if (this.warned.has(key)) return;
+    this.warned.add(key);
     (this.mods.warn ?? console.warn)(message);
   }
 
   private withMetrics(defs: readonly ClusterMetricDefinition[]): ClusterTable {
     const live = defs.filter((d) => {
       if (!this.base.columns.includes(d.id)) return true;
-      this.warn(`cluster metric '${d.id}' skipped: the dataset already has a column of that name`);
+      const message = `cluster metric '${d.id}' skipped: the dataset already has a column of that name`;
+      this.warn(message, message);
       return false;
     });
     this.labels = Object.fromEntries(live.map((d) => [d.id, d.label]));
@@ -82,9 +92,11 @@ export class Session implements PhySession {
     col = this.base.rows.map((r) => {
       try {
         const v = d.compute(r[0] as number, ctx);
-        return typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v)) ? v : null;
+        if (typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v))) return v;
+        this.warn(`metric:${d.id}`, `cluster metric '${d.id}' returned a non-finite number or a value that is not a number or string for cluster ${r[0]} (further problems with this metric are not reported)`);
+        return null;
       } catch (e) {
-        this.warn(`cluster metric '${d.id}' failed for cluster ${r[0]}: ${e instanceof Error ? e.message : String(e)}`);
+        this.warn(`metric:${d.id}`, `cluster metric '${d.id}' failed for cluster ${r[0]}: ${e instanceof Error ? e.message : String(e)} (further problems with this metric are not reported)`);
         return null;
       }
     });

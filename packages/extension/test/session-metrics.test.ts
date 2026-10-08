@@ -71,3 +71,24 @@ it('computes a new metric without recomputing the existing ones, and keeps the t
   set([]);
   expect(session.clusters.columns).not.toContain('a');
 });
+
+it('warns once per metric, however many clusters it throws on', async () => {
+  const { session, warn } = await sessionWith([metric('bad', () => { throw new Error('boom'); })]);
+  expect(col(session, 'bad').every((v) => v === null)).toBe(true);
+  expect(session.clusters.rows.length).toBeGreaterThan(1);
+  expect(warn).toHaveBeenCalledTimes(1);
+  expect(warn.mock.calls[0][0]).toMatch(/bad.*boom/);
+});
+
+it.each([NaN, Infinity, {} as never])('warns once and leaves every cell empty when a metric returns %s', async (value) => {
+  const { session, warn } = await sessionWith([metric('odd', () => value)]);
+  expect(col(session, 'odd').every((v) => v === null)).toBe(true);
+  expect(warn).toHaveBeenCalledTimes(1);
+  expect(warn.mock.calls[0][0]).toMatch(/odd.*non-finite/);
+});
+
+it('lets a metric read session.clusters without recursing', async () => {
+  const { session } = await sessionWith([metric('rows', (_id, ctx) => ctx.session.clusters.rows.length)]);
+  const n = session.clusters.rows.length;
+  expect(col(session, 'rows').every((v) => v === n)).toBe(true);
+});

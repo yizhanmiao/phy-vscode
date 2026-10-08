@@ -71,7 +71,7 @@ function renderHeader(): void {
       const d = document.createElement('div');
       const arrow = state.sort?.column === c ? (state.sort.descending ? '▼ ' : '▲ ') : ''; // before the name so it survives truncation
       d.textContent = arrow + c;
-      d.title = labels[c] ?? c;
+      d.title = Object.hasOwn(labels, c) ? labels[c] : c;
       d.onclick = () => {
         state = { ...state, sort: { column: c, descending: state.sort?.column === c ? !state.sort.descending : false } };
         persist();
