@@ -33,19 +33,25 @@ export function activate(api: PhyApi): Disposable {
   const subs: Disposable[] = [];
   let panel: vscode.WebviewPanel | undefined;
 
+  let shown = ''; // last html set: an identical re-render must not reload the iframe
   const render = () => {
-    if (panel) panel.webview.html = html(pageFor(api.activeSession()));
+    if (!panel) return;
+    const next = html(pageFor(api.activeSession()));
+    if (next !== shown) panel.webview.html = shown = next;
   };
 
   // The API has no "active session changed" event, so listen to every session that opens and act only on the active one.
-  const watch = (s: PhySession) =>
+  const watched = new WeakSet<PhySession>();
+  const watch = (s: PhySession | undefined) => {
+    if (!s || watched.has(s)) return;
+    watched.add(s);
     subs.push(
       s.onDidChangeSelection(() => {
         if (s === api.activeSession()) render();
       }),
     );
-  const current = api.activeSession();
-  if (current) watch(current);
+  };
+  watch(api.activeSession());
   subs.push(api.onDidOpenSession(watch));
 
   const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
@@ -59,8 +65,14 @@ export function activate(api: PhyApi): Disposable {
       panel.dispose();
       return;
     }
-    panel = vscode.window.createWebviewPanel('taroCell', 'Taro cell', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, { enableScripts: false });
-    panel.onDidDispose(() => (panel = undefined));
+    watch(api.activeSession()); // e.g. a dataset that was already open when the plugin was reloaded
+    // Our own page has no script and its CSP has no script-src, so none of it can run; the flag only lets the framed
+    // page run its own scripts (a nested iframe inherits the webview's sandbox, so without it the page would be inert).
+    panel = vscode.window.createWebviewPanel('taroCell', 'Taro cell', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true });
+    panel.onDidDispose(() => {
+      panel = undefined;
+      shown = '';
+    });
     render();
   });
 
