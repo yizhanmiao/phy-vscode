@@ -27,14 +27,16 @@ export const builtinHistograms: HistogramDefinition[] = [
   },
 ];
 
-export function clusterStatsView(histograms: readonly HistogramDefinition[]): BuiltinView {
+export function clusterStatsView(histograms: readonly HistogramDefinition[] | (() => readonly HistogramDefinition[])): BuiltinView {
+  const current = typeof histograms === 'function' ? histograms : () => histograms;
   return {
     id: 'cluster_statistics',
     title: 'Cluster statistics',
     async provider({ session }, token) {
       const ctx = { session };
+      const list = current(); // one snapshot per run, so meta and buffers agree
       const buffers: ArrayBufferLike[] = [];
-      for (const h of histograms) {
+      for (const h of list) {
         for (const id of session.selection) {
           checkCancel(token);
           buffers.push(h.compute(session.spikesOf(id), ctx).buffer);
@@ -42,7 +44,7 @@ export function clusterStatsView(histograms: readonly HistogramDefinition[]): Bu
       }
       const meta: StatsMeta = {
         clusters: [...session.selection],
-        histograms: histograms.map((h) => ({ id: h.id, label: h.label, unit: h.unit, range: h.range?.(ctx) })),
+        histograms: list.map((h) => ({ id: h.id, label: h.label, unit: h.unit, range: h.range?.(ctx) })),
       };
       return { meta, buffers };
     },
