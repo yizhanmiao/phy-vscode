@@ -75,3 +75,6 @@ export interface HistogramDefinition {
 }
 
 export type * from './protocol';
+export type * from './plot';
+export * from './helpers';
+export * from './mods';

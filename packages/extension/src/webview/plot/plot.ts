@@ -2,25 +2,8 @@ import { AXIS_INSET, BARE_INSET, barTriangles, gridRects, inset, interleave, lin
 import type { Layer, Panel, Rgba, Scene } from './scene';
 import { formatTick, niceTicks } from './ticks';
 import { carryView, panRange, zoomRange, type Range } from './view';
-
-export interface Theme {
-  fg: Rgba;
-  muted: Rgba;
-  bg: Rgba;
-}
-export interface PlotClick {
-  panel: number;
-  x: number;
-  y: number;
-  shift: boolean;
-  button: number;
-}
-export interface Plot {
-  setScene(scene: Scene): void;
-  onClick(listener: (e: PlotClick) => void): void;
-  theme(): Theme;
-  dispose(): void;
-}
+import type { Plot, PlotClick, Theme } from '@phy-vscode/api';
+export type { Plot, PlotClick, Theme };
 
 const VS = `#version 300 es
 in vec2 a_pos;

@@ -108,7 +108,7 @@
     "package": "node esbuild.mjs && npx -y @vscode/vsce package --no-dependencies --allow-missing-repository --skip-license"
   },
   "dependencies": {
-    "@phy-vscode/api": "0.1.0",
+    "@phy-vscode/api": "0.2.0",
     "dockview-core": "^8.4.0"
   },
   "devDependencies": {

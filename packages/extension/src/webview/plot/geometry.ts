@@ -1,4 +1,7 @@
+import { parseColor, withAlpha } from '@phy-vscode/api';
 import type { Rgba } from './scene';
+
+export { parseColor, withAlpha };
 
 export interface Rect {
   x: number;
@@ -103,24 +106,5 @@ export function lineJitter(width: number): [number, number][] {
   }
   return out;
 }
-
-const GREY: Rgba = [0.5, 0.5, 0.5, 1];
-
-/** CSS colour (#rgb, #rrggbb, #rrggbbaa, rgb(), rgba()) → RGBA in 0..1. */
-export function parseColor(css: string, alpha?: number): Rgba {
-  const s = css.trim();
-  let c: Rgba = GREY;
-  let m = /^#([0-9a-f]{3})$/i.exec(s);
-  if (m) c = [...m[1].split('').map((h) => parseInt(h + h, 16) / 255), 1] as unknown as Rgba;
-  else if ((m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(s))) {
-    const v = (i: number) => parseInt(m![1].slice(i, i + 2), 16) / 255;
-    c = [v(0), v(2), v(4), m[2] ? parseInt(m[2], 16) / 255 : 1];
-  } else if ((m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/i.exec(s))) {
-    c = [Number(m[1]) / 255, Number(m[2]) / 255, Number(m[3]) / 255, m[4] === undefined ? 1 : Number(m[4])];
-  }
-  return alpha === undefined ? c : withAlpha(c, alpha);
-}
-
-export const withAlpha = (c: Rgba, a: number): Rgba => [c[0], c[1], c[2], a];
 
 export const toCss = (c: Rgba): string => `rgba(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)},${c[3]})`;

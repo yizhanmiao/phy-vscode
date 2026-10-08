@@ -1,6 +1,6 @@
 {
   "name": "@phy-vscode/api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Public types for phy-vscode views and mods",
   "types": "src/index.ts",
   "main": "src/index.ts"

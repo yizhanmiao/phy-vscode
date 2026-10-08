@@ -1,7 +1,5 @@
-export interface Range {
-  min: number;
-  max: number;
-}
+import type { Range } from '@phy-vscode/api';
+export type { Range };
 
 /** Narrowest span zooming in may reach: below this the floating-point spacing of the values swallows tick steps and GPU precision. */
 const minSpan = (r: Range): number => 1e-6 * Math.max(1, Math.abs((r.min + r.max) / 2));
