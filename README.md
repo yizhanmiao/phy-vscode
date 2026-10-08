@@ -1,5 +1,9 @@
 # phy-vscode
 
+[![Documentation](https://img.shields.io/badge/docs-yizhanmiao.github.io%2Fphy--vscode-blue)](https://yizhanmiao.github.io/phy-vscode/)
+[![Latest release](https://img.shields.io/github/v/release/yizhanmiao/phy-vscode)](https://github.com/yizhanmiao/phy-vscode/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/yizhanmiao/phy-vscode)](LICENSE)
+
 A VS Code extension for browsing [phy](https://phy.readthedocs.io/)/Kilosort spike-sorting datasets, written in pure TypeScript with no Python at runtime.
 
 > [!WARNING]
@@ -13,6 +17,8 @@ A VS Code extension for browsing [phy](https://phy.readthedocs.io/)/Kilosort spi
 ![phy-vscode showing the Clusters table and the five plot views on a Kilosort 4 dataset](docs/screenshots/phy-vscode-ui.png)
 
 ## Documentation
+
+The full documentation is at **[yizhanmiao.github.io/phy-vscode](https://yizhanmiao.github.io/phy-vscode/)**, with search and an API reference. The same pages are in this repo:
 
 - **[User guide](docs/user-guide.md):** opening a dataset, the Clusters table and its filter, every view and its controls, layout, commands, troubleshooting.
 - **[Writing mods](docs/mods.md):** add a table column, a statistics panel or a whole view with a single pasted file, then the full plugin reference.
