@@ -1,7 +1,7 @@
 import { createDockview, themeDark, themeLight, type DockviewApi, type GroupPanelPartInitParameters, type IContentRenderer, type SerializedDockview } from 'dockview-core';
 import type { HostToPlot, PlotToHost } from '@phy-vscode/api';
 import { vscodeApi } from '../vscode';
-import { newViews, packLayout, tileFor, unpackLayout } from './layout';
+import { newViews, packLayout, tileFor, unpackLayout, type Tile } from './layout';
 import { moduleRenderer } from './moduleRenderer';
 import { createPlot, type Plot } from './plot';
 import type { RendererHost, ViewRenderer } from './renderer';
@@ -34,7 +34,7 @@ const known = new Set<string>(); // every view this webview's layout has been of
 let api: DockviewApi | undefined;
 
 /** Default tiling: Waveform left; Feature, Correlogram, Amplitude, Cluster statistics around it. */
-const DEFAULT_POSITION: Record<string, { referencePanel: string; direction: 'right' | 'below' } | undefined> = {
+const DEFAULT_POSITION: Record<string, Tile | undefined> = {
   waveform: undefined,
   feature: { referencePanel: 'waveform', direction: 'right' },
   correlogram: { referencePanel: 'feature', direction: 'below' },
@@ -116,10 +116,11 @@ class ViewPanel implements IContentRenderer {
   }
 }
 
-function addView(id: string, position?: { referencePanel: string; direction: 'right' | 'below' }): void {
+function addView(id: string, position?: Tile): void {
   if (!api || api.getPanel(id)) return;
-  const usable = position && api.getPanel(position.referencePanel) ? position : undefined;
-  api.addPanel({ id, component: 'view', title: titles.get(id) ?? id, params: { viewId: id }, ...(usable ? { position: usable } : {}) });
+  const dock = api;
+  // Never a tab: that would hide, and so stop rendering, the visible view it lands behind.
+  api.addPanel({ id, component: 'view', title: titles.get(id) ?? id, params: { viewId: id }, position: tileFor(position, (p) => !!dock.getPanel(p)) });
 }
 
 function init(m: Extract<HostToPlot, { type: 'init' }>): void {
@@ -145,9 +146,9 @@ function init(m: Extract<HostToPlot, { type: 'init' }>): void {
   }
   if (restored) {
     for (const p of [...api.panels]) if (!registered.includes(p.id)) api.removePanel(p); // a plugin that is gone
-    for (const id of newViews(registered, known)) addView(id, tileFor(DEFAULT_POSITION[id], api?.panels.at(-1)?.id)); // a plugin that is new
+    for (const id of newViews(registered, known)) addView(id, DEFAULT_POSITION[id]); // a plugin that is new
   } else {
-    for (const id of registered) addView(id, tileFor(DEFAULT_POSITION[id], api?.panels.at(-1)?.id));
+    for (const id of registered) addView(id, DEFAULT_POSITION[id]);
   }
   for (const id of registered) known.add(id);
   let timer: ReturnType<typeof setTimeout> | undefined;

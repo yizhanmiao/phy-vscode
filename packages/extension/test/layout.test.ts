@@ -16,10 +16,10 @@ describe('layout', () => {
     expect(newViews(['waveform', 'mine', 'other'], ['waveform', 'other'])).toEqual(['mine']);
     expect(newViews(['waveform'], LEGACY_KNOWN)).toEqual([]);
   });
-  it('tiles a view with no default tile beside the last panel, never as a tab', () => {
+  it('tiles a view at its default tile if that panel exists, else at the grid edge, never as a tab', () => {
     const own = { referencePanel: 'waveform', direction: 'below' } as const;
-    expect(tileFor(own, 'amplitude')).toBe(own);
-    expect(tileFor(undefined, 'amplitude')).toEqual({ referencePanel: 'amplitude', direction: 'right' });
-    expect(tileFor(undefined, undefined)).toBeUndefined();
+    expect(tileFor(own, (id) => id === 'waveform')).toBe(own);
+    expect(tileFor(own, () => false)).toEqual({ direction: 'right' });
+    expect(tileFor(undefined, () => true)).toEqual({ direction: 'right' });
   });
 });

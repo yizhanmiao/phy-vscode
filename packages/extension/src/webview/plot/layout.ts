@@ -23,8 +23,12 @@ export function newViews(registered: readonly string[], known: Iterable<string>)
   return registered.filter((id) => !seen.has(id));
 }
 
-type Tile = { referencePanel: string; direction: 'right' | 'below' };
+export type Tile = { referencePanel?: string; direction: 'right' | 'below' };
 
-/** Where a view opens: its default tile, else a pane of its own beside `lastPanel`. As a tab (a plugin's view) it would hide, and so stop rendering, the view it lands behind. */
-export const tileFor = (tile: Tile | undefined, lastPanel: string | undefined): Tile | undefined =>
-  tile ?? (lastPanel ? { referencePanel: lastPanel, direction: 'right' } : undefined);
+/**
+ * Where a view opens: its default tile when the panel it hangs off exists, else a new column at the grid edge. As a tab it would
+ * hide, and so stop rendering, the view it lands behind.
+ * ponytail: many plugin views each take a root-level column; the user rearranges them and the layout persists.
+ */
+export const tileFor = (tile: Tile | undefined, hasPanel: (id: string) => boolean): Tile =>
+  tile?.referencePanel && hasPanel(tile.referencePanel) ? tile : { direction: 'right' };

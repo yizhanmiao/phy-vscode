@@ -1,5 +1,5 @@
 import * as assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
@@ -46,9 +46,18 @@ export function dispose() { plot = undefined; }
 }
 
 export async function run(): Promise<void> {
+  const pluginDir = mkdtempSync(join(tmpdir(), 'phy-plugins-'));
+  try {
+    await runWith(pluginDir);
+  } finally {
+    await vscode.workspace.getConfiguration('phyVscode').update('pluginPaths', undefined, vscode.ConfigurationTarget.Global);
+    rmSync(pluginDir, { recursive: true, force: true });
+  }
+}
+
+async function runWith(pluginDir: string): Promise<void> {
   const fixtures = process.env.PHY_FIXTURES!;
   const api = await vscode.extensions.getExtension<ExtensionApi>('phy-vscode.phy-vscode')!.activate();
-  const pluginDir = mkdtempSync(join(tmpdir(), 'phy-plugins-'));
   writeSmokePlugin(pluginDir, 'smoke_double');
   await vscode.workspace.getConfiguration('phyVscode').update('pluginPaths', [pluginDir], vscode.ConfigurationTarget.Global);
   // The user's own ~/.phy-vscode/plugins may hold plugins too, so judge only this one.
@@ -58,6 +67,16 @@ export async function run(): Promise<void> {
     assert.ok(r.loaded >= 1);
   };
   await reload();
+  /**
+   * A module renderer's first `rendered` entry can precede its `import()` resolving; a load failure arrives later as another entry.
+   * So let the page settle, then require some entry for `smoke_view` after `from` and none of them carrying an error.
+   */
+  const smokeViewClean = async (from: number, what: string) => {
+    await new Promise((r) => setTimeout(r, 2000));
+    const entries = api.renderLog().slice(from).filter((e) => e.viewId === 'smoke_view');
+    assert.ok(entries.length > 0, `${what}: smoke_view never rendered`);
+    for (const e of entries) assert.equal(e.error, undefined, `${what}: smoke_view: ${e.error}`);
+  };
   const views = ['waveform', 'feature', 'correlogram', 'amplitude', 'cluster_statistics', 'smoke_view'];
   /** Wait until every view rendered once after log index `from`; returns the latest entry per view. */
   const renderedAfter = (from: number) =>
@@ -80,6 +99,7 @@ export async function run(): Promise<void> {
   let mark = api.renderLog().length;
   session.select([7, 2]);
   for (const [v, e] of await renderedAfter(mark)) assert.equal(e.error, undefined, `${v}: ${e.error}`);
+  await smokeViewClean(mark, 'selection');
   for (const id of views) assert.ok((await api.runView(id)).buffers.length > 0, `${id} returned no buffers`);
 
   // Mods: the plugin's metric is a table column, its histogram a statistics panel, and its view rendered through the real CSP.
@@ -95,6 +115,7 @@ export async function run(): Promise<void> {
   assert.ok(session.clusters.columns.includes('smoke_triple'));
   assert.ok(!session.clusters.columns.includes('smoke_double'));
   for (const [v, e] of await renderedAfter(mark)) assert.equal(e.error, undefined, `${v} after reload: ${e.error}`);
+  await smokeViewClean(mark, 'after reload');
   assert.deepEqual([...session.selection], [7, 2]);
 
   await vscode.commands.executeCommand('workbench.action.closeAllEditors');
