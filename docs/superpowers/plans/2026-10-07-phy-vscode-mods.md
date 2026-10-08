@@ -1870,7 +1870,7 @@ git commit -m "feat: host uses the ModRegistry; activate returns PhyApi; reload 
 - [ ] **Step 1: Write the failing tests** — `packages/extension/test/plugins.test.ts`
 
 ```ts
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -1887,8 +1887,10 @@ const write = (file: string, body: string) => {
 };
 const metricPlugin = (id: string) => `exports.activate = (api) => { api.registerClusterMetric({ id: '${id}', label: '${id}', compute: () => 1 }); };`;
 
+const tmpDir = () => realpathSync(mkdtempSync(join(tmpdir(), 'phy-plugins-'))); // real path: the module cache is keyed by it
+
 function setup() {
-  const dir = mkdtempSync(join(tmpdir(), 'phy-plugins-'));
+  const dir = tmpDir();
   const mods = new ModRegistry();
   const api = createPhyApi(mods, { activeSession: () => undefined, onDidOpenSession: new Emitter<PhySession>().event });
   const log = vi.fn();
@@ -1981,7 +1983,7 @@ describe('PluginHost', () => {
 
 describe('discoverPlugins and pluginRoots', () => {
   it('logs a missing path instead of throwing, and accepts a single file as a root', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'phy-plugins-'));
+    const dir = tmpDir();
     write(join(dir, 'one.js'), metricPlugin('one'));
     const log = vi.fn();
     const found = discoverPlugins([join(dir, 'missing'), join(dir, 'one.js')], log);
@@ -2011,7 +2013,7 @@ Expected: FAIL (module `../src/host/plugins` not found).
 - [ ] **Step 3: Write `packages/extension/src/host/plugins.ts`**
 
 ```ts
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 import { API_VERSION, satisfiesApi, type Disposable, type PhyApi } from '@phy-vscode/api';
 
@@ -2067,6 +2069,7 @@ export function pluginRoots(setting: unknown, home: string, log: PluginLog): str
 /**
  * A root that is a file is one plugin. A root that is a folder contributes its top-level `*.js` files and each subfolder that has an
  * `index.js`; dot-entries and `node_modules` are skipped. Plugins are never looked for inside dataset folders.
+ * Paths are returned as real paths, because Node's module cache is keyed by them (on macOS `/var` is a symlink to `/private/var`).
  */
 export function discoverPlugins(roots: readonly string[], log: PluginLog): DiscoveredPlugin[] {
   const found: DiscoveredPlugin[] = [];
@@ -2077,15 +2080,18 @@ export function discoverPlugins(roots: readonly string[], log: PluginLog): Disco
       continue;
     }
     if (st.isFile()) {
-      found.push({ file: root, scope: root });
+      const file = realpathSync(root);
+      found.push({ file, scope: file });
       continue;
     }
     for (const name of readdirSync(root).sort()) {
       if (name.startsWith('.') || name === 'node_modules') continue;
       const p = join(root, name);
       const e = statSync(p, { throwIfNoEntry: false });
-      if (e?.isFile() && name.endsWith('.js')) found.push({ file: p, scope: p });
-      else if (e?.isDirectory() && existsSync(join(p, 'index.js'))) found.push({ file: join(p, 'index.js'), scope: p });
+      if (e?.isFile() && name.endsWith('.js')) {
+        const file = realpathSync(p);
+        found.push({ file, scope: file });
+      } else if (e?.isDirectory() && existsSync(join(p, 'index.js'))) found.push({ file: realpathSync(join(p, 'index.js')), scope: realpathSync(p) });
     }
   }
   return found;
@@ -2238,7 +2244,7 @@ git commit -m "feat: plugin host with scoped API, isolation and reload"
 ```ts
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -2253,7 +2259,7 @@ import { scaffoldPlugin } from '../src/host/scaffold';
 const templateDir = fileURLToPath(new URL('../templates/plugin', import.meta.url));
 const apiSrcDir = fileURLToPath(new URL('../../api/src', import.meta.url));
 const repoModules = fileURLToPath(new URL('../../../node_modules', import.meta.url));
-const tmp = () => mkdtempSync(join(tmpdir(), 'phy-scaffold-'));
+const tmp = () => realpathSync(mkdtempSync(join(tmpdir(), 'phy-scaffold-'))); // real path: plugins report real paths
 
 describe('scaffoldPlugin', () => {
   it('rejects a bad name and a non-empty target', () => {
@@ -2704,8 +2710,13 @@ In `run()`, directly after the `const api = …activate();` line, insert:
   const pluginDir = mkdtempSync(join(tmpdir(), 'phy-plugins-'));
   writeSmokePlugin(pluginDir, 'smoke_double');
   await vscode.workspace.getConfiguration('phyVscode').update('pluginPaths', [pluginDir], vscode.ConfigurationTarget.Global);
-  const loaded = await vscode.commands.executeCommand<{ loaded: number; problems: string[] }>('phy.reloadPlugins');
-  assert.deepEqual(loaded, { loaded: 1, problems: [] });
+  // The user's own ~/.phy-vscode/plugins may hold plugins too, so judge only this one.
+  const reload = async () => {
+    const r = (await vscode.commands.executeCommand<{ loaded: number; problems: string[] }>('phy.reloadPlugins'))!;
+    assert.deepEqual(r.problems.filter((p) => p.includes('phy-plugins-')), []);
+    assert.ok(r.loaded >= 1);
+  };
+  await reload();
 ```
 and change the `views` line to:
 ```ts
@@ -2724,7 +2735,7 @@ After the existing line `for (const id of views) assert.ok((await api.runView(id
   // Reload with an edited plugin while the dataset is open: the page restarts, every view (including the mod's) renders again.
   writeSmokePlugin(pluginDir, 'smoke_triple');
   mark = api.renderLog().length;
-  assert.deepEqual(await vscode.commands.executeCommand('phy.reloadPlugins'), { loaded: 1, problems: [] });
+  await reload();
   assert.ok(session.clusters.columns.includes('smoke_triple'));
   assert.ok(!session.clusters.columns.includes('smoke_double'));
   for (const [v, e] of await renderedAfter(mark)) assert.equal(e.error, undefined, `${v} after reload: ${e.error}`);
