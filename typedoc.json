@@ -1,0 +1,13 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "@phy-vscode/api",
+  "entryPoints": ["packages/api/src/index.ts"],
+  "tsconfig": "packages/api/tsconfig.json",
+  "out": "docs/api",
+  "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+  "docsRoot": "./docs",
+  "readme": "none",
+  "entryFileName": "index",
+  "hideBreadcrumbs": true,
+  "excludeInternal": true
+}

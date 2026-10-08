@@ -11,3 +11,6 @@ tools/goldens/.venv/
 __pycache__/
 examples/*/index.js
 examples/*/index.js.map
+docs/api/
+docs/.vitepress/cache/
+docs/.vitepress/dist/

@@ -8,6 +8,16 @@
     "build": "npm run build -w packages/extension",
     "test": "npm test -w packages/extension",
     "typecheck": "npm run typecheck -w packages/extension",
-    "package": "npm run package -w packages/extension"
+    "package": "npm run package -w packages/extension",
+    "docs:api": "typedoc",
+    "docs:dev": "npm run docs:api && vitepress dev docs",
+    "docs:build": "npm run docs:api && vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.13.1",
+    "typedoc-vitepress-theme": "^1.1.4",
+    "vitepress": "^1.6.4"
   }
 }
