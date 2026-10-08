@@ -63,9 +63,25 @@ export class ViewScheduler {
 
   setSettings(viewId: string, patch: Record<string, unknown>): void {
     this.settings[viewId] = { ...this.settingsOf(viewId), ...patch };
+    this.viewChanged(viewId);
+  }
+
+  /** The view's inputs changed (not the selection): drop its cached result and recompute it if it is shown. */
+  viewChanged(viewId: string): void {
     this.computedFor.delete(viewId);
     if (this.visible.has(viewId)) this.refresh(viewId);
-    else { this.current.get(viewId)?.source.cancel(); this.current.delete(viewId); }
+    else {
+      this.current.get(viewId)?.source.cancel();
+      this.current.delete(viewId);
+    }
+  }
+
+  /** The webview was replaced: forget what it showed. The new one reports its visible views, which are all recomputed. */
+  reset(): void {
+    for (const c of this.current.values()) c.source.cancel();
+    this.current.clear();
+    this.computedFor.clear();
+    this.visible.clear();
   }
 
   refresh(viewId: string): void {

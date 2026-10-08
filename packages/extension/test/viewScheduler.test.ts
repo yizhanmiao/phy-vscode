@@ -155,4 +155,31 @@ describe('ViewScheduler', () => {
     s.setVisible(['a']);
     expect(calls).toHaveLength(2);
   });
+
+  it('viewChanged recomputes a visible view, and a hidden one when it is next shown', () => {
+    const { s, calls } = harness();
+    s.setVisible(['waveform']);
+    calls.length = 0;
+    s.viewChanged('waveform');
+    expect(calls.map((c) => c.viewId)).toEqual(['waveform']);
+    s.setVisible([]);
+    calls.length = 0;
+    s.viewChanged('waveform');
+    expect(calls).toEqual([]);
+    s.setVisible(['waveform']);
+    expect(calls.map((c) => c.viewId)).toEqual(['waveform']);
+  });
+
+  it('reset drops in-flight results and recomputes the views the new webview reports', async () => {
+    const { s, calls, posted, flush } = harness();
+    s.setVisible(['waveform']);
+    const old = calls[0];
+    s.reset();
+    expect(old.token.isCancellationRequested).toBe(true);
+    old.resolve(result(1));
+    await flush();
+    expect(posted).toEqual([]);
+    s.setVisible(['waveform']);
+    expect(calls).toHaveLength(2);
+  });
 });
