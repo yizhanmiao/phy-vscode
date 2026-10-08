@@ -6,7 +6,7 @@ A VS Code extension for browsing [phy](https://phy.readthedocs.io/)/Kilosort spi
 > **This is a proof of concept.** It's an experiment in whether phy's views can run natively inside VS Code. It isn't a replacement for phy.
 > - **Read-only.** You can browse and select clusters. Curation (merge, split, relabel, undo) isn't implemented, and nothing is written back to the dataset.
 > - **Incomplete.** phy's Similarity, Trace, Probe and Raster views are missing.
-> - **Unstable.** Expect bugs and breaking changes. The mod/plugin API in `packages/api` isn't stable yet.
+> - **Unstable.** Expect bugs and breaking changes. The mod API (`packages/api`, `0.x`) can change between minor versions.
 > - **Not on the VS Code Marketplace.** Download the `.vsix` from [Releases](../../releases) or build it from source (see [Install](#install)).
 > - Tested on one Kilosort 4 dataset and synthetic fixtures. Check results against phy before you rely on them.
 
@@ -25,6 +25,8 @@ A VS Code extension for browsing [phy](https://phy.readthedocs.io/)/Kilosort spi
 **Amplitude, Correlogram and Cluster statistics views:** amplitude vs time with a marginal histogram; auto- and cross-correlograms with adjustable bin and window; ISI and firing-rate histograms.
 
 ![Amplitude, Correlogram and Cluster statistics views](docs/screenshots/amplitude-correlogram-stats.png)
+
+**Mods:** add table columns, statistics histograms and whole plot views from a plugin folder (`Phy: New Plugin…`, `Phy: Reload Plugins`) or from another VS Code extension. See [docs/mods.md](docs/mods.md).
 
 Design: [docs/superpowers/specs/2026-10-03-phy-vscode-extension-design.md](docs/superpowers/specs/2026-10-03-phy-vscode-extension-design.md)
 
