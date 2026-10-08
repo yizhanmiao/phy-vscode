@@ -1,7 +1,7 @@
 import { createDockview, themeDark, themeLight, type DockviewApi, type GroupPanelPartInitParameters, type IContentRenderer, type SerializedDockview } from 'dockview-core';
 import type { HostToPlot, PlotToHost } from '@phy-vscode/api';
 import { vscodeApi } from '../vscode';
-import { newViews, packLayout, unpackLayout } from './layout';
+import { newViews, packLayout, tileFor, unpackLayout } from './layout';
 import { moduleRenderer } from './moduleRenderer';
 import { createPlot, type Plot } from './plot';
 import type { RendererHost, ViewRenderer } from './renderer';
@@ -145,9 +145,9 @@ function init(m: Extract<HostToPlot, { type: 'init' }>): void {
   }
   if (restored) {
     for (const p of [...api.panels]) if (!registered.includes(p.id)) api.removePanel(p); // a plugin that is gone
-    for (const id of newViews(registered, known)) addView(id, DEFAULT_POSITION[id]); // a plugin that is new
+    for (const id of newViews(registered, known)) addView(id, tileFor(DEFAULT_POSITION[id], api?.panels.at(-1)?.id)); // a plugin that is new
   } else {
-    for (const id of registered) addView(id, DEFAULT_POSITION[id]);
+    for (const id of registered) addView(id, tileFor(DEFAULT_POSITION[id], api?.panels.at(-1)?.id));
   }
   for (const id of registered) known.add(id);
   let timer: ReturnType<typeof setTimeout> | undefined;

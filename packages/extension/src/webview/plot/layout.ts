@@ -17,8 +17,14 @@ export function unpackLayout(saved: unknown): { dock: unknown; known: string[] }
 
 export const packLayout = (dock: unknown, known: Iterable<string>): SavedLayout => ({ v: 2, dock, known: [...known] });
 
-/** Registered views the layout has never been offered: they get a tab. Views the user closed stay in `known`, so they stay closed. */
+/** Registered views the layout has never been offered: they get a pane of their own (see tileFor). Views the user closed stay in `known`, so they stay closed. */
 export function newViews(registered: readonly string[], known: Iterable<string>): string[] {
   const seen = new Set(known);
   return registered.filter((id) => !seen.has(id));
 }
+
+type Tile = { referencePanel: string; direction: 'right' | 'below' };
+
+/** Where a view opens: its default tile, else a pane of its own beside `lastPanel`. As a tab (a plugin's view) it would hide, and so stop rendering, the view it lands behind. */
+export const tileFor = (tile: Tile | undefined, lastPanel: string | undefined): Tile | undefined =>
+  tile ?? (lastPanel ? { referencePanel: lastPanel, direction: 'right' } : undefined);

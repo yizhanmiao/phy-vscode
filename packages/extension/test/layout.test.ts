@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEGACY_KNOWN, newViews, packLayout, unpackLayout } from '../src/webview/plot/layout';
+import { LEGACY_KNOWN, newViews, packLayout, tileFor, unpackLayout } from '../src/webview/plot/layout';
 
 describe('layout', () => {
   it('reads nothing as no layout', () => {
@@ -15,5 +15,11 @@ describe('layout', () => {
   it('lists only registered views the layout has never seen, so closed views stay closed', () => {
     expect(newViews(['waveform', 'mine', 'other'], ['waveform', 'other'])).toEqual(['mine']);
     expect(newViews(['waveform'], LEGACY_KNOWN)).toEqual([]);
+  });
+  it('tiles a view with no default tile beside the last panel, never as a tab', () => {
+    const own = { referencePanel: 'waveform', direction: 'below' } as const;
+    expect(tileFor(own, 'amplitude')).toBe(own);
+    expect(tileFor(undefined, 'amplitude')).toEqual({ referencePanel: 'amplitude', direction: 'right' });
+    expect(tileFor(undefined, undefined)).toBeUndefined();
   });
 });
