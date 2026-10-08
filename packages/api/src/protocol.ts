@@ -28,7 +28,7 @@ export type PlotToHost =
 export type HostToPlot =
   | {
       type: 'init';
-      views: { id: string; title: string }[];
+      views: { id: string; title: string; rendererUri?: string }[];
       layout?: unknown;
       settings: Record<string, Record<string, unknown>>;
       states: Record<string, unknown>;

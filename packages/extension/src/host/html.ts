@@ -37,7 +37,7 @@ export const BASE_CSS =
 export const nonce = (): string => randomBytes(16).toString('base64');
 
 export function webviewHtml(o: { cspSource: string; scriptUri: string; nonce: string; title: string }): string {
-  const csp = `default-src 'none'; style-src ${o.cspSource} 'unsafe-inline'; img-src ${o.cspSource} data:; script-src 'nonce-${o.nonce}';`;
+  const csp = `default-src 'none'; style-src ${o.cspSource} 'unsafe-inline'; img-src ${o.cspSource} data:; script-src ${o.cspSource} 'nonce-${o.nonce}';`;
   return (
     `<!DOCTYPE html><html><head><meta charset="utf-8">` +
     `<meta http-equiv="Content-Security-Policy" content="${csp}">` +

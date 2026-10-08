@@ -1,6 +1,8 @@
 import { createDockview, themeDark, themeLight, type DockviewApi, type GroupPanelPartInitParameters, type IContentRenderer, type SerializedDockview } from 'dockview-core';
 import type { HostToPlot, PlotToHost } from '@phy-vscode/api';
 import { vscodeApi } from '../vscode';
+import { newViews, packLayout, unpackLayout } from './layout';
+import { moduleRenderer } from './moduleRenderer';
 import { createPlot, type Plot } from './plot';
 import type { RendererHost, ViewRenderer } from './renderer';
 import { missingRenderer, renderers } from './renderers';
@@ -26,6 +28,8 @@ const root = document.getElementById('root')!;
 const slots = new Map<string, Slot>();
 let local: LocalState = vscode.getState() ?? { settings: {}, states: {} };
 let titles = new Map<string, string>();
+let rendererUris = new Map<string, string>();
+const known = new Set<string>(); // every view this webview's layout has been offered; closed views stay in it
 let api: DockviewApi | undefined;
 
 /** Default tiling: Waveform left; Feature, Correlogram, Amplitude, Cluster statistics around it. */
@@ -37,7 +41,7 @@ const DEFAULT_POSITION: Record<string, { referencePanel: string; direction: 'rig
   cluster_statistics: { referencePanel: 'correlogram', direction: 'right' },
 };
 
-const saveLocal = () => vscode.setState({ ...local, layout: api?.toJSON() });
+const saveLocal = () => vscode.setState({ ...local, layout: api && packLayout(api.toJSON(), known) });
 const reportVisible = () => post({ type: 'visible', viewIds: [...slots.values()].filter((s) => s.visible).map((s) => s.viewId) });
 
 function hostFor(viewId: string): RendererHost {
@@ -61,6 +65,21 @@ function hostFor(viewId: string): RendererHost {
   };
 }
 
+function rendererFor(viewId: string): ViewRenderer {
+  const builtin = renderers[viewId];
+  if (builtin) return builtin();
+  const uri = rendererUris.get(viewId);
+  return uri ? moduleRenderer(uri, (error) => reportRendered(viewId, error)) : missingRenderer();
+}
+
+/** A mod renderer finished after its first `update` returned: say how it went (the host's render log and the header). */
+function reportRendered(viewId: string, error?: string): void {
+  const slot = slots.get(viewId);
+  if (!slot) return;
+  if (error) setHeader(slot, error, true);
+  post({ type: 'rendered', viewId, seq: slot.lastSeq, error });
+}
+
 class ViewPanel implements IContentRenderer {
   readonly element = document.createElement('div');
   private viewId = '';
@@ -73,7 +92,7 @@ class ViewPanel implements IContentRenderer {
     body.className = 'phy-body';
     this.element.append(header, body);
     const plot = createPlot(body);
-    const renderer = (renderers[this.viewId] ?? missingRenderer)();
+    const renderer = rendererFor(this.viewId);
     const slot: Slot = { viewId: this.viewId, renderer, plot, header, visible: params.api.isVisible, lastSeq: 0 };
     slots.set(this.viewId, slot);
     renderer.mount(body, plot, hostFor(this.viewId));
@@ -101,27 +120,37 @@ function addView(id: string, position?: { referencePanel: string; direction: 'ri
 
 function init(m: Extract<HostToPlot, { type: 'init' }>): void {
   titles = new Map(m.views.map((v) => [v.id, v.title]));
+  rendererUris = new Map(m.views.flatMap((v) => (v.rendererUri ? [[v.id, v.rendererUri] as const] : [])));
   local = { settings: { ...m.settings, ...local.settings }, states: { ...m.states, ...local.states }, layout: local.layout ?? m.layout };
   if (api) return;
   api = createDockview(root, {
     createComponent: () => new ViewPanel(),
     theme: document.body.classList.contains('vscode-light') ? themeLight : themeDark,
   });
+  const registered = m.views.map((v) => v.id);
+  const saved = unpackLayout(local.layout);
   let restored = false;
-  if (local.layout) {
+  if (saved) {
     try {
-      api.fromJSON(local.layout as SerializedDockview);
+      api.fromJSON(saved.dock as SerializedDockview);
       restored = true;
+      for (const k of saved.known) known.add(k);
     } catch {
       api.clear();
     }
   }
-  if (!restored) for (const v of m.views) addView(v.id, DEFAULT_POSITION[v.id]);
+  if (restored) {
+    for (const p of [...api.panels]) if (!registered.includes(p.id)) api.removePanel(p); // a plugin that is gone
+    for (const id of newViews(registered, known)) addView(id, DEFAULT_POSITION[id]); // a plugin that is new
+  } else {
+    for (const id of registered) addView(id, DEFAULT_POSITION[id]);
+  }
+  for (const id of registered) known.add(id);
   let timer: ReturnType<typeof setTimeout> | undefined;
   api.onDidLayoutChange(() => {
     saveLocal();
     clearTimeout(timer);
-    timer = setTimeout(() => post({ type: 'persist', layout: api!.toJSON() }), 500);
+    timer = setTimeout(() => post({ type: 'persist', layout: packLayout(api!.toJSON(), known) }), 500);
   });
 }
 

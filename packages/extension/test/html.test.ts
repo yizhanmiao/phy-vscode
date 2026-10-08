@@ -19,9 +19,9 @@ describe('pages', () => {
 });
 
 describe('webviewHtml', () => {
-  it('allows scripts only from the nonce and never eval', () => {
+  it('allows scripts only from the webview roots and the nonce, never eval', () => {
     const h = webviewHtml({ cspSource: 'vscode-resource:', scriptUri: 'vscode-resource:/dist/webview/plot.js', nonce: 'abc123', title: 'Phy <x>' });
-    expect(h).toContain("script-src 'nonce-abc123'");
+    expect(h).toContain("script-src vscode-resource: 'nonce-abc123'");
     expect(h).toContain('<script nonce="abc123" src="vscode-resource:/dist/webview/plot.js">');
     expect(h).not.toContain('unsafe-eval');
     expect(h).toContain('<title>Phy &#60;x&#62;</title>');
