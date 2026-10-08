@@ -50,8 +50,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   );
   context.subscriptions.push(
     { dispose: () => void pool.dispose() },
+    { dispose: () => plugins.dispose() }, // before `out`: subscriptions dispose in order, so the channel outlives the plugins' shutdown logging
     out,
-    { dispose: () => plugins.dispose() },
     vscode.commands.registerCommand('phy.reloadPlugins', async () => {
       const r = report(await plugins.reload());
       void vscode.window.setStatusBarMessage(`Phy: ${r.loaded} plugin(s) loaded`, 4000);
@@ -94,7 +94,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       if (id) editor.activePanel?.toggleView(id);
     }),
   );
-  void plugins.load().then(report).finally(pluginsLoaded);
+  void plugins.load().then(report).catch((e) => log(`plugin loading failed: ${e instanceof Error ? e.message : String(e)}`)).finally(pluginsLoaded);
   return {
     ...api,
     renderLog: () => editor.activePanel?.renderLog ?? [],

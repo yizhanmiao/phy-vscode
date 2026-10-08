@@ -102,6 +102,8 @@ export interface PluginHostDeps {
   log: PluginLog;
   /** Defer the registry's change events until the returned function is called, so a reload refreshes webviews once. */
   hold(): () => void;
+  /** How long a plugin's `activate()` or `deactivate()` may take before it is reported and skipped. Default 10 000. */
+  timeoutMs?: number;
 }
 
 const isDisposable = (x: unknown): x is Disposable => typeof (x as Disposable | undefined)?.dispose === 'function';
@@ -112,6 +114,14 @@ const tryDispose = (d: Disposable): void => {
     // a failing dispose must not stop the rest being undone
   }
 };
+/** Rejects with `<what> did not finish within N s` if `p` has not settled by then; the timer never outlives `p`. */
+function withTimeout<T>(p: Promise<T> | T, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} did not finish within ${ms / 1000} s`)), ms);
+  });
+  return Promise.race([Promise.resolve(p), timeout]).finally(() => clearTimeout(timer));
+}
 const text = (e: unknown): string => {
   try {
     return e instanceof Error ? e.message : String(e);
@@ -179,10 +189,21 @@ export class PluginHost {
   private active: { file: string; scope: string; plugin: PluginModule; subs: Disposable[]; close(): void }[] = [];
   private queue: Promise<unknown> = Promise.resolve();
 
-  constructor(private readonly deps: PluginHostDeps) {}
+  private readonly timeoutMs: number;
+
+  constructor(private readonly deps: PluginHostDeps) {
+    this.timeoutMs = deps.timeoutMs ?? 10_000;
+  }
 
   load(): Promise<LoadReport> {
-    return this.enqueue(() => this.loadNow());
+    return this.enqueue(async () => {
+      const release = this.deps.hold(); // startup registrations produce one merged change event
+      try {
+        return await this.loadNow();
+      } finally {
+        release();
+      }
+    });
   }
 
   /** Unload every plugin, forget its modules, load again. The registry emits one merged change event. */
@@ -209,7 +230,6 @@ export class PluginHost {
     return run;
   }
 
-  // ponytail: an activate() that never settles stalls loading; add a timeout if a plugin ever does.
   private async loadNow(): Promise<LoadReport> {
     const { loader, log } = this.deps;
     const problems: string[] = [];
@@ -236,7 +256,7 @@ export class PluginHost {
           loader.unload([scope]);
           continue;
         }
-        const returned = await plugin.activate(api);
+        const returned = await withTimeout(plugin.activate(api), this.timeoutMs, 'activate');
         if (isDisposable(returned)) subs.push(returned);
         this.active.push({ file, scope, plugin: plugin as PluginModule, subs, close });
         loaded++;
@@ -257,7 +277,7 @@ export class PluginHost {
     this.active = [];
     for (const { file, plugin, subs, close } of active) {
       try {
-        await plugin.deactivate?.();
+        await withTimeout(plugin.deactivate?.(), this.timeoutMs, 'deactivate');
       } catch (e) {
         log(`${file}: deactivate failed: ${text(e)}`);
       }

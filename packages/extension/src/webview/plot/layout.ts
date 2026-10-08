@@ -32,3 +32,17 @@ export type Tile = { referencePanel?: string; direction: 'right' | 'below' };
  */
 export const tileFor = (tile: Tile | undefined, hasPanel: (id: string) => boolean): Tile =>
   tile?.referencePanel && hasPanel(tile.referencePanel) ? tile : { direction: 'right' };
+
+/**
+ * What `init` does with a restored layout: remove the panels of views no longer registered, and forget them in `known` so the
+ * view is offered again if it comes back (a mod briefly missing at page init must not be closed for good). Views the user closed are
+ * registered but not in the dock, so they stay in `known` and stay closed.
+ */
+export function restorePlan(registered: readonly string[], panelIds: readonly string[], known: Iterable<string>): { remove: string[]; add: string[]; known: Set<string> } {
+  const remove = panelIds.filter((id) => !registered.includes(id));
+  const seen = new Set(known);
+  for (const id of remove) seen.delete(id);
+  const add = newViews(registered, seen);
+  for (const id of registered) seen.add(id);
+  return { remove, add, known: seen };
+}

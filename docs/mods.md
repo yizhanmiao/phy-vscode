@@ -34,7 +34,8 @@ How plugins are found:
 - For that reason `phyVscode.pluginPaths` is a machine-scope setting, and plugins are never loaded from dataset folders or workspace settings.
 - After a plugin is unloaded or fails to activate, its registration and event-subscription methods (`registerView`, `registerClusterMetric`, `registerHistogram`, `onDidOpenSession`, and `onDidChangeSelection`/`onDidChangeClusters` on sessions from `api`) throw `plugin unloaded` if used again, for example from a leftover timer.
 - Subscriptions are removed automatically only for sessions you get from `api.activeSession()` or `api.onDidOpenSession`. The `ctx.session` passed to a metric, histogram or view provider is the raw session: a listener you add on it you must dispose yourself.
-- A plugin whose `activate()` never settles stalls plugin loading, and the plot pages wait for the first load before they start. There is no timeout yet.
+- A plugin whose `activate()` or `deactivate()` does not finish within 10 seconds is reported as a problem and skipped (its registrations are undone and its `api` stops working), so it cannot stall plugin loading or a reload. The plot pages wait for the first load before they start.
+- `api.onDidOpenSession` fires while the dataset is opening, before it becomes the active one. Use the session passed to your listener, not `api.activeSession()`.
 
 ## Way 2: from another VS Code extension
 
@@ -44,9 +45,10 @@ How plugins are found:
 ```
 ```ts
 const phy = await vscode.extensions.getExtension<PhyApi>('phy-vscode.phy-vscode')!.activate();
-if (!satisfiesApi('^0.2.0', phy.version)) return; // from '@phy-vscode/api'
+if (!phy.version.startsWith('0.2.')) return; // compare by hand: the API this extension was written for
 context.subscriptions.push(phy.registerClusterMetric({ … }));
 ```
+`@phy-vscode/api` is not published; copy the API types from the `api/` folder of a plugin scaffold (**Phy: New Plugin**) into your extension.
 
 ## Views
 

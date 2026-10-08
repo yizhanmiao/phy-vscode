@@ -17,7 +17,7 @@ const metricPlugin = (id: string) => `exports.activate = (api) => { api.register
 
 const tmpDir = () => realpathSync(mkdtempSync(join(tmpdir(), 'phy-plugins-'))); // real path: the module cache is keyed by it
 
-function setup() {
+function setup(timeoutMs?: number) {
   const dir = tmpDir();
   const mods = new ModRegistry();
   const sel = new Emitter<readonly number[]>();
@@ -34,7 +34,7 @@ function setup() {
   };
   const api = createPhyApi(mods, { activeSession: () => session, onDidOpenSession: opened.event });
   const log = vi.fn();
-  const host = new PluginHost({ api, loader: requireLoader(createRequire(import.meta.url)), roots: () => [dir], log, hold: () => mods.hold() });
+  const host = new PluginHost({ api, loader: requireLoader(createRequire(import.meta.url)), roots: () => [dir], log, hold: () => mods.hold(), timeoutMs });
   const ids = () => mods.metrics().map((m) => m.id);
   return { dir, mods, host, log, ids, sel, opened, session };
 }
@@ -90,6 +90,48 @@ describe('PluginHost', () => {
     expect(mods.histograms().some((h) => h.id === 'h')).toBe(true);
     await host.reload();
     expect((globalThis as { __phyDisposed?: boolean }).__phyDisposed).toBe(true);
+  });
+
+  it('load runs under one hold, so plugins registering during startup produce one merged change event', async () => {
+    const { dir, host, mods } = setup();
+    write(join(dir, 'a.js'), metricPlugin('a'));
+    write(join(dir, 'b.js'), metricPlugin('b'));
+    const events: RegistryChange[] = [];
+    mods.onDidChange((c) => events.push(c));
+    await host.load();
+    expect(events).toEqual([{ views: false, metrics: true, histograms: false }]);
+  });
+
+  it('reports a plugin whose activate never settles, loads the others, and ignores a late registration', async () => {
+    const { dir, host, ids } = setup(20);
+    const g = globalThis as { __phyLate?: () => void; __phyLateErr?: string };
+    delete g.__phyLate;
+    delete g.__phyLateErr;
+    write(
+      join(dir, 'a-hung.js'),
+      `exports.activate = (api) => new Promise((resolve) => { globalThis.__phyLate = () => { try { api.registerClusterMetric({ id: 'late', label: 'l', compute: () => 1 }); } catch (e) { globalThis.__phyLateErr = e.message; } resolve(); }; });`,
+    );
+    write(join(dir, 'b-ok.js'), metricPlugin('ok'));
+    const r = await host.load();
+    expect(r.loaded).toBe(1);
+    expect(r.problems.map((p) => p.replace(dir, ''))).toEqual(['/a-hung.js: activate did not finish within 0.02 s']);
+    expect(ids()).toEqual(['ok']);
+    g.__phyLate!();
+    expect(g.__phyLateErr).toBe('plugin unloaded');
+    expect(ids()).toEqual(['ok']);
+  });
+
+  it('a deactivate that never settles is logged and reload still completes and releases its hold', async () => {
+    const { dir, host, mods, log, ids } = setup(20);
+    write(join(dir, 'a.js'), `${metricPlugin('a')} exports.deactivate = () => new Promise(() => {});`);
+    await host.load();
+    expect((await host.reload()).loaded).toBe(1);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/a\.js: deactivate failed: deactivate did not finish within 0\.02 s/));
+    expect(ids()).toEqual(['a']);
+    const events: RegistryChange[] = [];
+    mods.onDidChange((c) => events.push(c));
+    mods.registerClusterMetric({ id: 'z', label: 'z', compute: () => 1 });
+    expect(events).toHaveLength(1); // not held back
   });
 
   it('reload picks up edited plugin and sibling files, drops the old registrations, and emits one change', async () => {

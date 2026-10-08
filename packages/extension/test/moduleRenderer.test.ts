@@ -58,6 +58,16 @@ describe('moduleRenderer', () => {
     expect(report.mock.calls[0][0]).toMatch(/mount, update and dispose/);
   });
 
+  it('rejects a default factory that returns nothing, reporting once', async () => {
+    const report = vi.fn();
+    const r = moduleRenderer('u', report, async () => ({ default: () => undefined }));
+    r.mount(el, plot, host);
+    await flush();
+    expect(report).toHaveBeenCalledOnce();
+    expect(report.mock.calls[0][0]).toMatch(/mount, update and dispose/);
+    expect(() => r.update(1, [], sel)).not.toThrow();
+  });
+
   it('reports a throw from the replayed update', async () => {
     const m = mod();
     m.update.mockImplementation(() => {

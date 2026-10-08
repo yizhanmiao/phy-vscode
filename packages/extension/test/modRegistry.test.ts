@@ -47,6 +47,7 @@ describe('ModRegistry views', () => {
     expect(() => r.registerView(view('waveform'))).toThrow(/already registered/);
     expect(() => r.registerView(view('has space'))).toThrow(/view id must match/);
     expect(() => r.registerView(view('x', { rendererScript: undefined as never }))).toThrow(/needs a rendererScript/);
+    expect(() => r.registerView(view('rel', { rendererScript: { fsPath: 'renderer.js' } }))).toThrow(/view 'rel' rendererScript must be an absolute path/);
     expect((await r.view('a')!.provider({} as never, live)).meta).toEqual({ id: 'a' });
   });
 

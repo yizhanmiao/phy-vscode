@@ -1,3 +1,4 @@
+import { isAbsolute } from 'node:path';
 import type { CancellationToken, ClusterMetricDefinition, Disposable, HistogramDefinition, UriLike, ViewDefinition, ViewResult } from '@phy-vscode/api';
 import { makeBuiltinViews } from '../views';
 import { builtinHistograms } from '../views/stats/provider';
@@ -62,6 +63,7 @@ export class ModRegistry {
     checkId('view', def.id);
     if (!def.title) throw new Error(`view '${def.id}' needs a title`);
     if (!def.rendererScript?.fsPath) throw new Error(`view '${def.id}' needs a rendererScript`);
+    if (!isAbsolute(def.rendererScript.fsPath)) throw new Error(`view '${def.id}' rendererScript must be an absolute path`);
     if (this.view(def.id)) throw new Error(`view '${def.id}' is already registered`);
     const entry: ViewEntry = {
       id: def.id,

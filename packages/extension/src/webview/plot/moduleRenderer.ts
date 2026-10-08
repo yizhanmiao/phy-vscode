@@ -24,14 +24,14 @@ export function moduleRenderer(url: string, report: (error?: string) => void, lo
         (mod) => {
           if (disposed) return;
           const m = mod as { default?: unknown } & Partial<ViewRenderer>;
-          let r: Partial<ViewRenderer>;
+          let r: Partial<ViewRenderer> | null | undefined;
           try {
             r = typeof m.default === 'function' ? (m.default as () => Partial<ViewRenderer>)() : m;
           } catch (e) {
             fail(`could not start renderer ${url}: ${message(e)}`);
             return;
           }
-          if (typeof r.mount !== 'function' || typeof r.update !== 'function' || typeof r.dispose !== 'function') {
+          if (typeof r?.mount !== 'function' || typeof r?.update !== 'function' || typeof r?.dispose !== 'function') {
             fail(`renderer ${url} must export mount, update and dispose`);
             return;
           }

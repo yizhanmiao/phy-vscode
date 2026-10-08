@@ -1,7 +1,7 @@
 import { createDockview, themeDark, themeLight, type DockviewApi, type GroupPanelPartInitParameters, type IContentRenderer, type SerializedDockview } from 'dockview-core';
 import type { HostToPlot, PlotToHost } from '@phy-vscode/api';
 import { vscodeApi } from '../vscode';
-import { newViews, packLayout, tileFor, unpackLayout, type Tile } from './layout';
+import { packLayout, restorePlan, tileFor, unpackLayout, type Tile } from './layout';
 import { moduleRenderer } from './moduleRenderer';
 import { createPlot, type Plot } from './plot';
 import type { RendererHost, ViewRenderer } from './renderer';
@@ -145,12 +145,15 @@ function init(m: Extract<HostToPlot, { type: 'init' }>): void {
     }
   }
   if (restored) {
-    for (const p of [...api.panels]) if (!registered.includes(p.id)) api.removePanel(p); // a plugin that is gone
-    for (const id of newViews(registered, known)) addView(id, DEFAULT_POSITION[id]); // a plugin that is new
+    const plan = restorePlan(registered, api.panels.map((p) => p.id), known);
+    for (const p of [...api.panels]) if (plan.remove.includes(p.id)) api.removePanel(p); // a plugin that is gone
+    for (const id of plan.add) addView(id, DEFAULT_POSITION[id]); // a plugin that is new
+    known.clear();
+    for (const id of plan.known) known.add(id);
   } else {
     for (const id of registered) addView(id, DEFAULT_POSITION[id]);
+    for (const id of registered) known.add(id);
   }
-  for (const id of registered) known.add(id);
   let timer: ReturnType<typeof setTimeout> | undefined;
   api.onDidLayoutChange(() => {
     saveLocal();
