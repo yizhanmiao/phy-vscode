@@ -1,7 +1,7 @@
 import { basename } from 'node:path';
 
-export const ORIGIN = 'http://taro-station.usc.edu';
-export const BASE_URL = `${ORIGIN}/dataview/cell/`;
+export const ORIGIN = 'http://taro-station.usc.edu:8000';
+export const BASE_URL = `${ORIGIN}/data-view/cell/`;
 // <year>-<month>-<day>-R%03d<shank>, e.g. 2026-05-07-R001A: the folder Kilosort wrote the sorting to
 const SESSION = /^\d{4}-\d{2}-\d{2}-R\d{3}[A-Za-z]+$/;
 
