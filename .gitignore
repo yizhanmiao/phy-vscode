@@ -9,3 +9,5 @@ tools/goldens/.venv/
 .omc/
 .DS_Store
 __pycache__/
+examples/*/index.js
+examples/*/index.js.map

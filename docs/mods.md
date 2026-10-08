@@ -69,3 +69,7 @@ The id is the column name, so it cannot contain spaces. It cannot reuse a built-
 ## Commands
 
 `phy.reloadPlugins` and `phy.newPlugin` work without a dataset open, unlike the dataset commands, which require `phyDatasetActive`.
+
+## Example
+
+`examples/taro-cell/` is a complete plugin that adds a status-bar item and a webview panel showing an external page for the selected cluster. It uses only `activeSession()`, `onDidOpenSession` and `session.onDidChangeSelection`, plus the `vscode` module, which a plugin can `require` because it runs in the extension host. A plugin cannot contribute Command Palette entries, so it uses a status-bar item.
