@@ -36,8 +36,28 @@
       {
         "command": "phy.selectPrevious",
         "title": "Phy: Select Previous Cluster"
+      },
+      {
+        "command": "phy.reloadPlugins",
+        "title": "Phy: Reload Plugins"
+      },
+      {
+        "command": "phy.newPlugin",
+        "title": "Phy: New Plugin…"
       }
     ],
+    "configuration": {
+      "title": "phy-vscode",
+      "properties": {
+        "phyVscode.pluginPaths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "scope": "machine",
+          "markdownDescription": "Extra plugin files or folders to load, besides `~/.phy-vscode/plugins`. Absolute paths or `~/…`. Plugins run with full access to this machine, so this setting is machine-wide and a workspace cannot set it. Run **Phy: Reload Plugins** after changing it."
+        }
+      }
+    },
     "menus": {
       "commandPalette": [
         {

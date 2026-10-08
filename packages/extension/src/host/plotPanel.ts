@@ -47,6 +47,7 @@ export class PlotPanel implements vscode.Disposable {
   private readonly subs: vscode.Disposable[] = [];
   /** The view list the webview was last initialised with (JSON); undefined until it asks. */
   private shown: string | undefined;
+  private disposed = false;
 
   constructor(private readonly panel: vscode.WebviewPanel, private readonly session: Session, private readonly ctx: PanelContext) {
     this.scheduler = new ViewScheduler(
@@ -126,6 +127,7 @@ export class PlotPanel implements vscode.Disposable {
     switch (m.type) {
       case 'ready':
         void this.ctx.ready.then(() => {
+          if (this.disposed) return;
           const saved = loadPersisted(state, paramsPath);
           const views = this.views();
           this.shown = JSON.stringify(views);
@@ -155,6 +157,7 @@ export class PlotPanel implements vscode.Disposable {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.scheduler.dispose();
     for (const s of this.subs) s.dispose();
   }

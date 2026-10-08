@@ -1,3 +1,4 @@
+import { cpSync, rmSync } from 'node:fs';
 import { build } from 'esbuild';
 
 const common = { bundle: true, platform: 'node', format: 'cjs', target: 'node20', sourcemap: true, external: ['vscode'], logLevel: 'info' };
@@ -19,3 +20,8 @@ await Promise.all([
   build({ ...web, entryPoints: ['src/webview/sidebar/main.ts'], outfile: 'dist/webview/sidebar.js' }),
   build({ ...common, entryPoints: ['test/smoke/index.ts'], outfile: 'dist-test/smoke.cjs' }),
 ]);
+
+// The files `Phy: New Plugin` copies: the plugin template and the API sources (plain TypeScript).
+rmSync('dist/plugin-template', { recursive: true, force: true });
+cpSync('templates/plugin', 'dist/plugin-template/files', { recursive: true });
+cpSync('../api/src', 'dist/plugin-template/api', { recursive: true });

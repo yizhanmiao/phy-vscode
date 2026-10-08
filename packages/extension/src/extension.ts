@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
 import type { PhyApi, ViewResult } from '@phy-vscode/api';
@@ -5,7 +7,9 @@ import { ClusterViewProvider } from './host/clusterView';
 import { DatasetEditorProvider } from './host/editor';
 import { ModRegistry } from './host/modRegistry';
 import { createPhyApi } from './host/phyApi';
+import { PluginHost, pluginRoots, requireLoader, type LoadReport } from './host/plugins';
 import type { RenderEntry } from './host/plotPanel';
+import { PLUGIN_NAME, scaffoldPlugin } from './host/scaffold';
 import { WorkerPool } from './host/workerPool';
 
 /** What `activate` returns: the public `PhyApi` for mods, plus test hooks the smoke test uses (not part of the API). */
@@ -22,6 +26,21 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const editor = new DatasetEditorProvider({ storage: context.globalStorageUri, extensionUri: context.extensionUri, state: context.workspaceState, compute: pool, mods, ready });
   const clusters = new ClusterViewProvider({ extensionUri: context.extensionUri, state: context.workspaceState, mods });
   const api = createPhyApi(mods, { activeSession: () => editor.activeSession, onDidOpenSession: editor.onDidOpenSession });
+  const out = vscode.window.createOutputChannel('phy-vscode');
+  const log = (m: string) => out.appendLine(m);
+  const plugins = new PluginHost({
+    api,
+    loader: requireLoader(createRequire(join(context.extensionPath, 'package.json'))),
+    roots: () => pluginRoots(vscode.workspace.getConfiguration('phyVscode').get('pluginPaths'), homedir(), log),
+    log,
+    hold: () => mods.hold(),
+  });
+  const report = (r: LoadReport): LoadReport => {
+    if (r.problems.length) {
+      void vscode.window.showWarningMessage(`Phy: ${r.problems.length} plugin problem(s): ${r.problems[0]}`, 'Show output').then((b) => b && out.show());
+    }
+    return r;
+  };
   context.subscriptions.push(
     clusters,
     vscode.window.registerWebviewViewProvider('phyVscode.clusters', clusters),
@@ -31,6 +50,35 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   );
   context.subscriptions.push(
     { dispose: () => void pool.dispose() },
+    out,
+    { dispose: () => plugins.dispose() },
+    vscode.commands.registerCommand('phy.reloadPlugins', async () => {
+      const r = report(await plugins.reload());
+      void vscode.window.setStatusBarMessage(`Phy: ${r.loaded} plugin(s) loaded`, 4000);
+      return r;
+    }),
+    vscode.commands.registerCommand('phy.newPlugin', async () => {
+      const name = await vscode.window.showInputBox({
+        prompt: 'Name for the new plugin (a folder under ~/.phy-vscode/plugins)',
+        value: 'my-plugin',
+        validateInput: (v) => (PLUGIN_NAME.test(v) ? undefined : 'Lowercase letters, digits and dashes, starting with a letter'),
+      });
+      if (!name) return;
+      const target = join(homedir(), '.phy-vscode', 'plugins', name);
+      try {
+        scaffoldPlugin({
+          templateDir: join(context.extensionPath, 'dist', 'plugin-template', 'files'),
+          apiSrcDir: join(context.extensionPath, 'dist', 'plugin-template', 'api'),
+          target,
+          name,
+        });
+      } catch (e) {
+        void vscode.window.showErrorMessage(`Phy: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
+      await vscode.window.showTextDocument(vscode.Uri.file(join(target, 'src', 'index.ts')));
+      void vscode.window.showInformationMessage(`Created ${target}. Run "npm install && npm run build" there, then "Phy: Reload Plugins".`);
+    }),
     vscode.window.registerCustomEditorProvider('phyVscode.dataset', editor, {
       supportsMultipleEditorsPerDocument: false,
       webviewOptions: { retainContextWhenHidden: true },
@@ -46,7 +94,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       if (id) editor.activePanel?.toggleView(id);
     }),
   );
-  pluginsLoaded(); // Task 9 loads the plugins first
+  void plugins.load().then(report).finally(pluginsLoaded);
   return {
     ...api,
     renderLog: () => editor.activePanel?.renderLog ?? [],
