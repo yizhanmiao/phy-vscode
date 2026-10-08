@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -91,6 +91,49 @@ describe('PluginHost', () => {
     expect((await host.reload()).loaded).toBe(1);
     expect(ids()).toEqual(['v2']);
     expect(events).toEqual([{ views: false, metrics: true, histograms: false }]);
+  });
+
+  it('reload picks up a fixed plugin whose activate threw', async () => {
+    const { dir, host, ids } = setup();
+    write(join(dir, 'a.js'), `exports.activate = () => { throw new Error('boom'); };`);
+    expect((await host.load()).problems).toHaveLength(1);
+    write(join(dir, 'a.js'), metricPlugin('fixed'));
+    expect((await host.reload()).loaded).toBe(1);
+    expect(ids()).toEqual(['fixed']);
+  });
+
+  it('reload picks up a plugin that was refused for its apiVersion and then made compatible', async () => {
+    const { dir, host, ids } = setup();
+    write(join(dir, 'a.js'), `exports.apiVersion = '^9.0.0'; ${metricPlugin('v')}`);
+    expect((await host.load()).problems).toHaveLength(1);
+    write(join(dir, 'a.js'), `exports.apiVersion = '^${API_VERSION}'; ${metricPlugin('v')}`);
+    expect((await host.reload()).loaded).toBe(1);
+    expect(ids()).toEqual(['v']);
+  });
+
+  it('reload picks up a plugin that had no activate() and now has one', async () => {
+    const { dir, host, ids } = setup();
+    write(join(dir, 'a.js'), 'exports.x = 1;');
+    await host.load();
+    write(join(dir, 'a.js'), metricPlugin('now'));
+    expect((await host.reload()).loaded).toBe(1);
+    expect(ids()).toEqual(['now']);
+  });
+
+  it('an unreadable root is logged and the other roots still load', async () => {
+    const { dir, mods, log } = setup();
+    mkdirSync(join(dir, 'locked'));
+    chmodSync(join(dir, 'locked'), 0o000); // cannot be listed
+    write(join(dir, 'good', 'a.js'), metricPlugin('good'));
+    const api = createPhyApi(mods, { activeSession: () => undefined, onDidOpenSession: new Emitter<PhySession>().event });
+    const host = new PluginHost({ api, loader: requireLoader(createRequire(import.meta.url)), roots: () => [join(dir, 'locked'), join(dir, 'good')], log, hold: () => mods.hold() });
+    try {
+      expect(await host.load()).toEqual({ loaded: 1, problems: [] });
+    } finally {
+      chmodSync(join(dir, 'locked'), 0o755);
+    }
+    expect(mods.metrics().map((m) => m.id)).toEqual(['good']);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/plugin path unreadable: .*locked: /));
   });
 
   it('calls deactivate on unload', async () => {

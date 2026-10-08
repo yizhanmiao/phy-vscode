@@ -59,24 +59,32 @@ export function pluginRoots(setting: unknown, home: string, log: PluginLog): str
 export function discoverPlugins(roots: readonly string[], log: PluginLog): DiscoveredPlugin[] {
   const found: DiscoveredPlugin[] = [];
   for (const root of roots) {
-    const st = statSync(root, { throwIfNoEntry: false });
-    if (!st) {
-      log(`plugin path not found: ${root}`);
-      continue;
-    }
-    if (st.isFile()) {
-      const file = realpathSync(root);
-      found.push({ file, scope: file });
-      continue;
-    }
-    for (const name of readdirSync(root).sort()) {
-      if (name.startsWith('.') || name === 'node_modules') continue;
-      const p = join(root, name);
-      const e = statSync(p, { throwIfNoEntry: false });
-      if (e?.isFile() && name.endsWith('.js')) {
-        const file = realpathSync(p);
+    try {
+      const st = statSync(root, { throwIfNoEntry: false });
+      if (!st) {
+        log(`plugin path not found: ${root}`);
+        continue;
+      }
+      if (st.isFile()) {
+        const file = realpathSync(root);
         found.push({ file, scope: file });
-      } else if (e?.isDirectory() && existsSync(join(p, 'index.js'))) found.push({ file: realpathSync(join(p, 'index.js')), scope: realpathSync(p) });
+        continue;
+      }
+      for (const name of readdirSync(root).sort()) {
+        if (name.startsWith('.') || name === 'node_modules') continue;
+        const p = join(root, name);
+        try {
+          const e = statSync(p, { throwIfNoEntry: false });
+          if (e?.isFile() && name.endsWith('.js')) {
+            const file = realpathSync(p);
+            found.push({ file, scope: file });
+          } else if (e?.isDirectory() && existsSync(join(p, 'index.js'))) found.push({ file: realpathSync(join(p, 'index.js')), scope: realpathSync(p) });
+        } catch (err) {
+          log(`plugin path unreadable: ${p}: ${text(err)}`);
+        }
+      }
+    } catch (err) {
+      log(`plugin path unreadable: ${root}: ${text(err)}`);
     }
   }
   return found;
@@ -136,6 +144,7 @@ export class PluginHost {
     });
   }
 
+  // ponytail: fire-and-forget, so deactivate() may still be running when the extension host shuts down; return the promise if that matters.
   dispose(): void {
     void this.enqueue(() => this.unloadNow());
   }
@@ -162,10 +171,12 @@ export class PluginHost {
         const plugin = (typeof exported?.activate === 'function' ? exported : exported?.default) as Partial<PluginModule> | undefined;
         if (typeof plugin?.activate !== 'function') {
           log(`${file}: no activate() export, skipped`);
+          loader.unload([scope]);
           continue;
         }
         if (plugin.apiVersion !== undefined && !satisfiesApi(plugin.apiVersion)) {
           fail(`${file}: needs API ${plugin.apiVersion}, this phy-vscode has ${API_VERSION}`);
+          loader.unload([scope]);
           continue;
         }
         const returned = await plugin.activate(scoped(this.deps.api, subs));
@@ -175,6 +186,7 @@ export class PluginHost {
         log(`${file}: loaded`);
       } catch (e) {
         for (const s of subs.reverse()) tryDispose(s);
+        loader.unload([scope]); // a module that loaded but failed to activate is cached; forget it so a fixed file is re-read on reload
         fail(`${file}: ${text(e)}`);
       }
     }
