@@ -59,10 +59,10 @@ To update, download the newer `.vsix` from [Releases](../../releases) and instal
 ```bash
 git clone <this repo> phy-vscode && cd phy-vscode
 npm install
-npm run package          # writes packages/extension/phy-vscode-0.0.1.vsix
+npm run package          # writes packages/extension/phy-vscode-<version>.vsix
 ```
 
-Install `packages/extension/phy-vscode-0.0.1.vsix` as in Option A. To update, pull, run `npm run package` again and reinstall.
+Install `packages/extension/phy-vscode-<version>.vsix` as in Option A. To update, pull, run `npm run package` again and reinstall.
 
 ### Option C: run from source (development)
 

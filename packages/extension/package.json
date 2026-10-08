@@ -3,7 +3,7 @@
   "displayName": "phy-vscode",
   "description": "Browse phy/Kilosort spike-sorting datasets in VS Code.",
   "publisher": "phy-vscode",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "license": "MIT",
   "type": "module",
