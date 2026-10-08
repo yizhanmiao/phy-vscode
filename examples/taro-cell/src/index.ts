@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { Disposable, PhyApi, PhySession } from '@phy-vscode/api';
 import { randomBytes } from 'node:crypto';
-import { html, pageBody } from './page';
+import { bodyOf, html, pageOf, panesMessage, structureOf } from './page';
 
 export const apiVersion = '^0.2.0';
 
@@ -11,11 +11,19 @@ export function activate(api: PhyApi): Disposable {
   const subs: Disposable[] = [];
   let panel: vscode.WebviewPanel | undefined;
 
-  let shown = ''; // last body set: an identical re-render must not reload the iframes
+  let shown = ''; // structure of the page last set: the same structure with other URLs is sent to the live panel
+  let urls: string[] = []; // the URLs the panel was last given
   const render = () => {
     if (!panel) return;
-    const body = pageBody(api.activeSession());
-    if (body !== shown) panel.webview.html = html((shown = body), randomBytes(16).toString('base64'));
+    const page = pageOf(api.activeSession());
+    const structure = structureOf(page);
+    const next = 'urls' in page ? page.urls : [];
+    if (structure === shown && next.join() === urls.join()) return; // an identical re-render must not reload the iframes
+    // A hidden panel has no live page to message; its html is shown again when it is revealed.
+    if (structure === shown && panel.visible) void panel.webview.postMessage(panesMessage(next));
+    else panel.webview.html = html(bodyOf(page), randomBytes(16).toString('base64'));
+    shown = structure;
+    urls = next;
   };
 
   // The API has no "active session changed" event, so listen to every session that opens and act only on the active one.
@@ -50,6 +58,7 @@ export function activate(api: PhyApi): Disposable {
     panel.onDidDispose(() => {
       panel = undefined;
       shown = '';
+      urls = [];
     });
     render();
   });

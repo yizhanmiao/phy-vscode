@@ -13,10 +13,15 @@ Then add `<repo>/examples` to `phyVscode.pluginPaths` (or copy this folder to `~
 
 A framed page is another origin, so the panel cannot read or set its scroll position. Instead the pages cooperate: paste
 [`taro-station-snippet.js`](taro-station-snippet.js) into the taro-station cell page (once). Framed here it then reports its
-scroll position to the panel, as a fraction of the page, and follows the other pane; opened on its own it does nothing.
-Without the snippet both panes still show, they just scroll independently.
+scroll position to the panel, as a fraction of the page, and follows the other pane. Opened on its own, or framed by anything
+other than a VS Code webview, it does nothing: it only listens to VS Code webview origins and reports only to the panel that
+greeted it. Without the snippet both panes still show, they just scroll independently.
 
-To check it: select two clusters, scroll one pane, and the other follows to the same fraction of its page.
+Changing one selected cluster reloads only that pane; the other keeps its page and scroll position.
+
+To check it: select two clusters, scroll one pane, and the other follows to the same fraction of its page. Then select a
+different first cluster: the second pane must not reload. (Not yet tried in real VS Code; the web editor's webview origin,
+`*.vscode-cdn.net`, is allowed by the snippet but untested.)
 
 ## Known limits
 
