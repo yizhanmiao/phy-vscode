@@ -21,12 +21,12 @@ export function pageBody(session: SessionLike | undefined): string {
   const ids = session.selection.slice(0, PANES);
   if (!ids.length) return `<p>Select a cluster.</p>`;
   const dir = session.dataset.dir;
-  if (!cellUrl(dir, ids[0]!))
+  const urls = ids.map((id) => cellUrl(dir, id));
+  if (urls.some((u) => !u))
     return `<p>The dataset folder <code>${esc(folderName(dir))}</code> is not named <code>&lt;year&gt;-&lt;month&gt;-&lt;day&gt;-R&lt;run&gt;&lt;shank&gt;</code>, e.g. <code>2026-05-07-R001A</code>.</p>`;
-  const panes = ids.map((id) => {
-    const url = cellUrl(dir, id)!;
-    return `<section><p class="bar"><code>${esc(url)}</code> <a href="${esc(url)}">Open in browser</a></p>${EMBED ? `<iframe src="${esc(url)}"></iframe>` : ''}</section>`;
-  });
+  const panes = urls.map(
+    (url) => `<section><p class="bar"><code>${esc(url!)}</code> <a href="${esc(url!)}">Open in browser</a></p>${EMBED ? `<iframe src="${esc(url!)}"></iframe>` : ''}</section>`,
+  );
   return `<div class="panes">${panes.join('')}</div>`;
 }
 
