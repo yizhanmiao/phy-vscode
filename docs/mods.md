@@ -22,17 +22,17 @@ All ids contain only letters, digits, `_`, `.` and `-`, start with a letter or `
 
 How plugins are found:
 - `~/.phy-vscode/plugins/` and the paths in the `phyVscode.pluginPaths` setting (absolute, or starting with `~/`; relative paths are ignored).
-- Each `*.js` file, and each subfolder with an `index.js`, is one plugin. A path in the setting may also point straight at one plugin file.
-- A plugin exports `activate(api)`, optionally `deactivate()` and `apiVersion` (a range such as `^0.2.0`; the plugin is refused if it does not match). `activate` may return a `Disposable`.
+- Every root (the default folder and each `phyVscode.pluginPaths` entry) is scanned as a **folder of plugins**: each top-level `*.js` file, and each subfolder with an `index.js`, is one plugin. So add the plugin's *parent* folder to the setting. Pointing it at a plugin folder itself would load that folder's top-level `*.js` files, including the browser-only `renderer.js`. An entry may also be a single `.js` file, which is one plugin.
+- A plugin exports `activate(api)`, optionally `deactivate()` and `apiVersion`, which is an exact `x.y.z` or a caret range `^x.y.z` (nothing else is understood). A plugin whose `apiVersion` does not match is refused. `activate` may return a `Disposable`.
 - Everything a plugin registers through `api` is removed when it is unloaded.
-- A plugin that throws is skipped and reported in the **phy-vscode** output channel; the others still load.
-- Plugins are plain CommonJS. No TypeScript is compiled at runtime, so build first. A plugin's `tsconfig.json` needs the `DOM` lib, because `ViewRenderer` mentions `HTMLElement` (the scaffold's already has it).
+- A plugin that throws in `activate`, or is refused for its `apiVersion`, is skipped and reported as a problem: a warning popup plus a line in the **phy-vscode** output channel. The others still load. A file with no `activate` export is only logged there and skipped, with no popup.
+- Plugins are plain CommonJS. No TypeScript is compiled at runtime, so build first. A plugin's `tsconfig.json` needs the `DOM` lib, because `ViewRenderer` mentions `HTMLElement` (the scaffold's already has it). The scaffold copies the API sources into the plugin's `api/` folder and its `tsconfig.json` maps `@phy-vscode/api` to it, so no npm package is needed.
 - A reload re-reads a plugin file. For a folder plugin it clears everything under that folder from Node's module cache; for a single-file plugin only the file itself. A plugin made of several files must therefore be a folder (`<dir>/index.js`).
 
 **Security and limits:**
 - A plugin runs in the extension host with full access to your machine. There is no sandbox. Only load code you trust.
 - For that reason `phyVscode.pluginPaths` is a machine-scope setting, and plugins are never loaded from dataset folders or workspace settings.
-- After a plugin is unloaded or fails to activate, its `api` object throws `plugin unloaded` if used again (for example from a leftover timer).
+- After a plugin is unloaded or fails to activate, its registration and event-subscription methods (`registerView`, `registerClusterMetric`, `registerHistogram`, `onDidOpenSession`, and `onDidChangeSelection`/`onDidChangeClusters` on sessions from `api`) throw `plugin unloaded` if used again, for example from a leftover timer.
 - Subscriptions are removed automatically only for sessions you get from `api.activeSession()` or `api.onDidOpenSession`. The `ctx.session` passed to a metric, histogram or view provider is the raw session: a listener you add on it you must dispose yourself.
 - A plugin whose `activate()` never settles stalls plugin loading, and the plot pages wait for the first load before they start. There is no timeout yet.
 
@@ -55,10 +55,10 @@ A view has two halves:
 - **`rendererScript`** is the path (`{ fsPath }`, which a `vscode.Uri` satisfies) of an ES module that runs in the plot webview and exports `mount(el, plot, host)`, `update(meta, buffers, selection)` and `dispose()`, or a default function returning them. `update` turns the data into a `Scene` and calls `plot.setScene(scene)`. `plot` is the same WebGL2 layer the built-in views use, with pan, zoom and theme colours. `host.settings`/`host.setSettings` pass settings to the provider; `host.getState`/`host.setState` persist renderer-only state per dataset.
 
 Rules for renderer scripts:
-- Bundle everything into **one file**. Only its own folder is served to the webview, and only the extension's own bundle plus scripts from there may run.
+- Bundle everything into **one file**. Only the folders of registered renderer scripts (plus the extension's own bundle) are served to the plot page and allowed as script sources.
 - A module that fails to load, or lacks the three exports, shows its error in the view's header. Other views are unaffected.
 - When the set of registered views changes (a plugin loads, reloads or is removed), the plot page reloads once. Layout, settings and selection are restored.
-- A newly registered view opens as a new column at the edge of the grid, not as a tab, so it does not hide another view. A view you closed stays closed.
+- A newly registered view opens as a new column at the edge of the grid, not as a tab, so it does not hide another view. A view you closed stays closed. Likewise a view whose plugin was removed is remembered as seen, so if the plugin comes back the view does not reopen by itself; use **Phy: Toggle View…**.
 
 ## Cluster metrics
 
