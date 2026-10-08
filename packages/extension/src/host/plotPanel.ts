@@ -1,8 +1,9 @@
+import { dirname } from 'node:path';
 import * as vscode from 'vscode';
 import type { HostToPlot, PlotToHost, SelectionMsg, TableState } from '@phy-vscode/api';
 import type { Compute } from '../compute';
-import { builtinViews } from '../views';
 import { nonce, webviewHtml } from './html';
+import type { ModRegistry, RegistryChange } from './modRegistry';
 import type { Session } from './session';
 import { ViewScheduler } from './viewScheduler';
 
@@ -29,6 +30,9 @@ export interface PanelContext {
   extensionUri: vscode.Uri;
   state: vscode.Memento;
   compute: Compute;
+  mods: ModRegistry;
+  /** Resolves once the first plugin load finished, so the webview starts with every plugin's views. */
+  ready: Promise<void>;
 }
 export interface RenderEntry {
   viewId: string;
@@ -41,20 +45,13 @@ export class PlotPanel implements vscode.Disposable {
   readonly renderLog: RenderEntry[] = [];
   private readonly scheduler: ViewScheduler;
   private readonly subs: vscode.Disposable[] = [];
+  /** The view list the webview was last initialised with (JSON); undefined until it asks. */
+  private shown: string | undefined;
 
   constructor(private readonly panel: vscode.WebviewPanel, private readonly session: Session, private readonly ctx: PanelContext) {
-    const webview = panel.webview;
-    const root = vscode.Uri.joinPath(ctx.extensionUri, 'dist', 'webview');
-    webview.options = { enableScripts: true, localResourceRoots: [root] };
-    webview.html = webviewHtml({
-      cspSource: webview.cspSource,
-      nonce: nonce(),
-      title: 'Phy',
-      scriptUri: webview.asWebviewUri(vscode.Uri.joinPath(root, 'plot.js')).toString(),
-    });
     this.scheduler = new ViewScheduler(
       (viewId, settings, token) => {
-        const view = builtinViews.find((v) => v.id === viewId);
+        const view = ctx.mods.view(viewId);
         if (!view) return Promise.reject(new Error(`unknown view ${viewId}`));
         return view.provider({ session, compute: ctx.compute, settings }, token);
       },
@@ -62,14 +59,61 @@ export class PlotPanel implements vscode.Disposable {
       () => selectionMsg(session),
       loadPersisted(ctx.state, session.dataset.paramsPath).settings,
     );
+    this.load();
     this.subs.push(
       session.onDidChangeSelection(() => this.scheduler.selectionChanged()),
-      webview.onDidReceiveMessage((m: PlotToHost) => this.onMessage(m)),
+      panel.webview.onDidReceiveMessage((m: PlotToHost) => this.onMessage(m)),
+      ctx.mods.onDidChange((c) => this.onModsChanged(c)),
     );
   }
 
   toggleView(viewId: string): void {
     this.post({ type: 'toggleView', viewId });
+  }
+
+  /** The webview may read dist/webview and the folder of every mod renderer. */
+  private setRoots(): void {
+    const dirs = new Set(this.ctx.mods.views().flatMap((v) => (v.rendererScript ? [dirname(v.rendererScript.fsPath)] : [])));
+    this.panel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.ctx.extensionUri, 'dist', 'webview'), ...[...dirs].map((d) => vscode.Uri.file(d))],
+    };
+  }
+
+  /** (Re)load the page. */
+  private load(): void {
+    const webview = this.panel.webview;
+    this.setRoots();
+    webview.html = webviewHtml({
+      cspSource: webview.cspSource,
+      nonce: nonce(),
+      title: 'Phy',
+      scriptUri: webview.asWebviewUri(vscode.Uri.joinPath(this.ctx.extensionUri, 'dist', 'webview', 'plot.js')).toString(),
+    });
+  }
+
+  private views(): { id: string; title: string; rendererUri?: string }[] {
+    return this.ctx.mods.views().map((v) => ({
+      id: v.id,
+      title: v.title,
+      ...(v.rendererScript
+        ? { rendererUri: this.panel.webview.asWebviewUri(vscode.Uri.file(v.rendererScript.fsPath)).with({ query: `v=${v.generation}` }).toString() }
+        : {}),
+    }));
+  }
+
+  private onModsChanged(c: RegistryChange): void {
+    if (c.views) {
+      this.setRoots();
+      if (this.shown !== undefined && this.shown !== JSON.stringify(this.views())) {
+        // The view list or a renderer changed under a live page: start it afresh. Layout, settings and selection come back from state.
+        this.shown = undefined;
+        this.scheduler.reset();
+        this.load();
+        return;
+      }
+    }
+    if (c.histograms) this.scheduler.viewChanged('cluster_statistics');
   }
 
   private post(m: HostToPlot): void {
@@ -80,11 +124,14 @@ export class PlotPanel implements vscode.Disposable {
     const { state } = this.ctx;
     const paramsPath = this.session.dataset.paramsPath;
     switch (m.type) {
-      case 'ready': {
-        const saved = loadPersisted(state, paramsPath);
-        this.post({ type: 'init', views: builtinViews.map(({ id, title }) => ({ id, title })), layout: saved.layout, settings: saved.settings, states: saved.states });
+      case 'ready':
+        void this.ctx.ready.then(() => {
+          const saved = loadPersisted(state, paramsPath);
+          const views = this.views();
+          this.shown = JSON.stringify(views);
+          this.post({ type: 'init', views, layout: saved.layout, settings: saved.settings, states: saved.states });
+        });
         break;
-      }
       case 'visible':
         this.scheduler.setVisible(m.viewIds);
         break;

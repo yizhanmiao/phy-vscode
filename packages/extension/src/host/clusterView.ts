@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { HostToSidebar, SidebarToHost } from '@phy-vscode/api';
 import { stepSelection } from '../shared/order';
 import { datasetInfo, nonce, webviewHtml } from './html';
+import type { ModRegistry } from './modRegistry';
 import { loadPersisted, savePersisted, selectionMsg } from './plotPanel';
 import type { Session } from './session';
 
@@ -12,7 +13,13 @@ export class ClusterViewProvider implements vscode.WebviewViewProvider, vscode.D
   private order: number[] = [];
   private sub: vscode.Disposable | undefined;
 
-  constructor(private readonly ctx: { extensionUri: vscode.Uri; state: vscode.Memento }) {}
+  private readonly modSub: vscode.Disposable;
+
+  constructor(private readonly ctx: { extensionUri: vscode.Uri; state: vscode.Memento; mods: ModRegistry }) {
+    this.modSub = ctx.mods.onDidChange((c) => {
+      if (c.metrics && this.session) this.push();
+    });
+  }
 
   resolveWebviewView(view: vscode.WebviewView): void {
     const root = vscode.Uri.joinPath(this.ctx.extensionUri, 'dist', 'webview');
@@ -52,7 +59,7 @@ export class ClusterViewProvider implements vscode.WebviewViewProvider, vscode.D
       return;
     }
     const state = loadPersisted(this.ctx.state, s.dataset.paramsPath).table ?? {};
-    this.post({ type: 'clusterTable', columns: s.clusters.columns, rows: s.clusters.rows, info: datasetInfo(s), state });
+    this.post({ type: 'clusterTable', columns: s.clusters.columns, rows: s.clusters.rows, labels: s.metricLabels(), info: datasetInfo(s), state });
     this.post({ type: 'selection', selection: selectionMsg(s) });
   }
 
@@ -79,6 +86,7 @@ export class ClusterViewProvider implements vscode.WebviewViewProvider, vscode.D
   }
 
   dispose(): void {
+    this.modSub.dispose();
     this.sub?.dispose();
   }
 }

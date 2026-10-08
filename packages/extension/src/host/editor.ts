@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { Compute } from '../compute';
 import { openDataset } from './dataset/dataset';
 import { errorHtml } from './html';
+import type { ModRegistry } from './modRegistry';
 import { PlotPanel } from './plotPanel';
 import { Session } from './session';
 
@@ -18,6 +19,8 @@ export interface EditorContext {
   extensionUri: vscode.Uri;
   state: vscode.Memento;
   compute: Compute;
+  mods: ModRegistry;
+  ready: Promise<void>;
 }
 
 export class DatasetEditorProvider implements vscode.CustomReadonlyEditorProvider<DatasetDocument> {
@@ -25,6 +28,8 @@ export class DatasetEditorProvider implements vscode.CustomReadonlyEditorProvide
   activePanel: PlotPanel | undefined;
   private readonly activeEmitter = new vscode.EventEmitter<Session | undefined>();
   readonly onDidChangeActiveSession = this.activeEmitter.event;
+  private readonly openEmitter = new vscode.EventEmitter<Session>();
+  readonly onDidOpenSession = this.openEmitter.event;
 
   constructor(private readonly ctx: EditorContext) {}
 
@@ -42,7 +47,12 @@ export class DatasetEditorProvider implements vscode.CustomReadonlyEditorProvide
         void vscode.window.showWarningMessage(`Phy: skipped metadata ${dataset.metadataErrors.map((m) => `${m.file} (${m.error})`).join('; ')}`);
       }
       try {
-        return new DatasetDocument(uri, new Session(dataset), undefined);
+        const session = new Session(dataset, {
+          metrics: () => this.ctx.mods.metrics(),
+          warn: (m) => void vscode.window.showWarningMessage(`Phy: ${m}`),
+        });
+        this.openEmitter.fire(session);
+        return new DatasetDocument(uri, session, undefined);
       } catch (e) {
         await dataset.close();
         throw e;
