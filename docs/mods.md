@@ -1,5 +1,7 @@
 # Writing phy-vscode mods
 
+> Using the extension itself? See the [user guide](user-guide.md).
+
 > **Proof of concept.** The API (`@phy-vscode/api`, version in `packages/api/package.json`) follows semver but is `0.x`: the minor version may break it.
 
 A mod can add three things:
@@ -12,7 +14,165 @@ A mod can add three things:
 
 All ids contain only letters, digits, `_`, `.` and `-`, start with a letter or `_`, and must be unique.
 
-`ctx.session` is the open dataset: `session.dataset` (typed arrays, read-only), `session.spikesOf(clusterId)`, `session.selection`, `session.clusters`.
+## Quick start: three plugins you can paste
+
+You need no build step, no TypeScript and no VS Code extension: save the file, run **Phy: Reload Plugins** from the Command Palette, and open a dataset. Plugins are plain JavaScript files in `~/.phy-vscode/plugins/` (create the folder if it does not exist). If something is wrong, a warning popup appears and **View → Output → phy-vscode** has the details.
+
+### 1. A table column and a statistics panel (one file)
+
+`~/.phy-vscode/plugins/hello.js`:
+
+```js
+exports.apiVersion = '^0.2.0'; // refused, with a message, if this phy-vscode's API is incompatible
+
+exports.activate = (api) => {
+  // A new column in the Clusters table: each cluster's share of all spikes.
+  api.registerClusterMetric({
+    id: 'spike_share',
+    label: 'Share of all spikes', // shown when you hover the column header
+    compute: (clusterId, { session }) => session.spikesOf(clusterId).length / session.dataset.nSpikes,
+  });
+
+  // A new panel in Cluster statistics: this cluster's spikes in 20 equal time slices.
+  api.registerHistogram({
+    id: 'spikes_over_time',
+    label: 'Spikes over time',
+    unit: 's',
+    range: ({ session }) => [0, session.dataset.duration], // what the x axis spans
+    compute(spikeIds, { session }) {
+      const { spikeTimes, sampleRate, duration } = session.dataset;
+      const counts = new Float64Array(20);
+      for (const i of spikeIds) counts[Math.min(19, Math.floor((spikeTimes[i] / sampleRate / duration) * 20))]++;
+      return counts;
+    },
+  });
+};
+```
+
+Reload plugins and open a dataset. The Clusters table has a `spike_share` column, which you can sort and filter (`spike_share > 0.05`), and Cluster statistics has a third panel.
+
+### 2. A whole new view (a folder with two files, still no build)
+
+A view has a part that computes in the extension host and a part that draws in the plot page, so it is two files in a folder.
+
+`~/.phy-vscode/plugins/spike-counts/index.js`:
+
+```js
+const path = require('node:path');
+
+exports.apiVersion = '^0.2.0';
+
+exports.activate = (api) => {
+  api.registerView({
+    id: 'spike_counts',
+    title: 'Spike counts',
+    rendererScript: { fsPath: path.join(__dirname, 'renderer.js') },
+    // Runs on every selection change while the view is visible. Returns JSON plus raw buffers.
+    async provider({ session }) {
+      const counts = Float32Array.from(session.selection, (id) => session.spikesOf(id).length);
+      return { meta: {}, buffers: [counts.buffer] };
+    },
+  });
+};
+```
+
+`~/.phy-vscode/plugins/spike-counts/renderer.js`:
+
+```js
+let plot;
+
+// '#0892fc' -> [r, g, b, a] with components 0..1, the colour format the plot layer wants
+const rgba = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).concat(1);
+
+export function mount(el, p) {
+  plot = p;
+}
+
+export function update(meta, buffers, selection) {
+  const counts = new Float32Array(buffers[0]);
+  if (counts.length === 0) return plot.setScene({ rows: 1, cols: 1, panels: [], message: 'Select a cluster' });
+  plot.setScene({
+    rows: 1,
+    cols: 1,
+    panels: [
+      {
+        row: 0,
+        col: 0,
+        title: 'Spikes per selected cluster',
+        x: { min: 0, max: counts.length },
+        y: { min: 0, max: Math.max(...counts) * 1.05 || 1 },
+        // one bar layer per cluster, in that cluster's selection colour
+        layers: Array.from(counts, (c, i) => ({ kind: 'bars', x0: i + 0.1, dx: 0.8, heights: Float32Array.of(c), color: rgba(selection.colors[i]) })),
+      },
+    ],
+  });
+}
+
+export function dispose() {
+  plot = undefined;
+}
+```
+
+Reload plugins; a **Spike counts** column appears at the right edge of the plot area. Select a few clusters and it draws one bar per cluster in that cluster's colour. `plot` is the same WebGL2 layer the built-in views use (zoom, pan, theme colours), and a `Scene` is a grid of panels holding `scatter`, `lines` and `bars` layers; the types are in the `api/` folder that **Phy: New Plugin…** copies into a new plugin. The renderer file is loaded by the plot page as an ES module, so `export` works and `require` does not.
+
+### 3. React to the selection (a status-bar item)
+
+A plugin runs in the extension host, so it can also use the `vscode` module. `~/.phy-vscode/plugins/selection-count.js`:
+
+```js
+const vscode = require('vscode');
+
+exports.activate = (api) => {
+  const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+  const show = (session) => {
+    item.text = `$(pulse) ${session.selection.length} selected`;
+    item.show();
+  };
+  const watch = (session) => session.onDidChangeSelection(() => show(session));
+
+  if (api.activeSession()) watch(api.activeSession());
+  api.onDidOpenSession(watch); // sessions opened later; the listeners are removed when the plugin unloads
+  return item; // anything with dispose() that you return is disposed on unload
+};
+```
+
+A fuller version of this idea is `examples/taro-cell/`, which opens a webview panel with an external page for the selected cluster.
+
+### Changing a plugin
+
+Edit the file, run **Phy: Reload Plugins**. The plugin is unloaded (everything it registered disappears), its files are read again, and it is loaded. An open dataset keeps its layout, sort and selection. A plugin made of several files must be a folder (`<name>/index.js`), because only a folder plugin has its other files re-read on reload.
+
+When you outgrow plain JavaScript (TypeScript, several files, a bundler), run **Phy: New Plugin…**: it creates `~/.phy-vscode/plugins/<name>/` with these same three kinds of registration written in TypeScript, an esbuild script and the API types.
+
+## The API at a glance
+
+`api` is what `activate(api)` receives:
+
+| Member | Meaning |
+|---|---|
+| `api.version` | the API version, e.g. `'0.2.0'` |
+| `api.activeSession()` | the dataset of the active editor, or `undefined` |
+| `api.onDidOpenSession(listener)` | called with each dataset as it opens |
+| `api.registerClusterMetric(def)` | a table column (below) |
+| `api.registerHistogram(def)` | a Cluster statistics panel |
+| `api.registerView(def)` | a plot view |
+
+Each `register…` returns a `Disposable`. You rarely need it: everything a plugin registers is removed when the plugin is unloaded.
+
+The `session` (in `ctx.session`, and in `activeSession()` / `onDidOpenSession`):
+
+| | |
+|---|---|
+| `session.selection` | selected cluster ids, in selection order |
+| `session.select(ids)` | change the selection |
+| `session.spikesOf(clusterId)` | indices of that cluster's spikes (`Int32Array`, ascending; do not modify it) |
+| `session.colorOf(clusterId)` | its selection colour as a CSS string (grey when not selected) |
+| `session.clusters` | the table: `{ columns, rows }` |
+| `session.onDidChangeSelection(listener)` | fires when the selection changes |
+| `session.dataset` | the read-only data, below |
+
+`session.dataset` holds typed arrays you index with those spike indices: `spikeTimes` (in samples; divide by `sampleRate` for seconds), `spikeClusters`, `spikeTemplates?` and `amplitudes?` (absent when the files are), `nSpikes`, `nChannels`, `duration` (seconds), `sampleRate`, `channelMap`, `channelPositions` (`nChannels × 2`, x then y per channel, row-major), `channelShanks?`, `dir` (the dataset folder).
+
 
 ## Way 1: a plugin folder (no VS Code extension needed)
 

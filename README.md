@@ -12,6 +12,13 @@ A VS Code extension for browsing [phy](https://phy.readthedocs.io/)/Kilosort spi
 
 ![phy-vscode showing the Clusters table and the five plot views on a Kilosort 4 dataset](docs/screenshots/phy-vscode-ui.png)
 
+## Documentation
+
+- **[User guide](docs/user-guide.md):** opening a dataset, the Clusters table and its filter, every view and its controls, layout, commands, troubleshooting.
+- **[Writing mods](docs/mods.md):** add a table column, a statistics panel or a whole view with a single pasted file, then the full plugin reference.
+
+**Quick start:** install the `.vsix` (see [Install](#install)), run **Phy: Open Dataset…** and pick the folder with `params.py`, click clusters in the **Phy** activity-bar panel (Alt+↓/↑ steps through them).
+
 ## Features
 
 **Clusters table:** a sortable, filterable table with multi-select. Each selected cluster gets a colour that the plot views reuse.
@@ -26,7 +33,7 @@ A VS Code extension for browsing [phy](https://phy.readthedocs.io/)/Kilosort spi
 
 ![Amplitude, Correlogram and Cluster statistics views](docs/screenshots/amplitude-correlogram-stats.png)
 
-**Mods:** add table columns, statistics histograms and whole plot views from a plugin folder (`Phy: New Plugin…`, `Phy: Reload Plugins`) or from another VS Code extension. See [docs/mods.md](docs/mods.md).
+**Mods:** add table columns, statistics histograms and whole plot views from a plugin folder (`Phy: New Plugin…`, `Phy: Reload Plugins`) or from another VS Code extension. A plugin can be one pasted JavaScript file; see [docs/mods.md](docs/mods.md).
 
 Design: [docs/superpowers/specs/2026-10-03-phy-vscode-extension-design.md](docs/superpowers/specs/2026-10-03-phy-vscode-extension-design.md)
 
